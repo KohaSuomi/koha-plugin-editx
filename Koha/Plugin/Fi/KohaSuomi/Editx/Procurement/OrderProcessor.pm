@@ -12,12 +12,13 @@ use Koha::Biblio;
 use Koha::Biblioitem;
 use Koha::Biblio::Metadata;
 use C4::Biblio;
-use C4::Biblio qw( GetFrameworkCode GetMarcBiblio ModBiblio ModZebra );
+use C4::Biblio qw( GetFrameworkCode ModBiblio ModZebra );
 use Koha::DateUtils;
 use C4::Barcodes::ValueBuilder;
 use utf8;
 use List::MoreUtils qw(uniq);
 use Data::Dumper;
+use YAML::XS;
 
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor::Order;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor::Basket;
@@ -198,8 +199,11 @@ sub getBiblioDatas {
 
         #my $marcBiblio = GetMarcBiblio($biblio);
         my $marcBiblio;
+        
+        my $bibliocheck = Koha::Biblios->find($biblio);
+        my $record = $bibliocheck->metadata->record({ embed_items => 1 });
         # gives undef my $marcBiblio = C4::Biblio::GetMarcBiblio({ biblionumber => $biblio });
-        eval { $marcBiblio = C4::Biblio::GetMarcBiblio({ biblionumber => $biblio }); };
+        eval { $marcBiblio = $record };
         if ($@ || !$marcBiblio) {
             # here we do warn since catching an exception
             # means that the bib was found but failed
@@ -571,6 +575,8 @@ sub createItem {
         ($args{branchcode}) = $data->{'destinationlocation'};
         ($args{prefix}) = $yaml->{$data->{'destinationlocation'}} || $yaml->{'Default'};
         ($args{prefixes}) = \@prefixes;
+        
+        $self->getLogger()->log("createItem destinationlocation: ". $data->{'destinationlocation'});
 
         $data->{"barcode"} = $self->generateBarcode(\%args, $autoBarcodeType);
 
