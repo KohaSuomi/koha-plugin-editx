@@ -117,6 +117,14 @@ sub getSellerIdentifier {
     return $result;
 }
 
+# For Broomworks Puppe
+sub getReferenceNumber {
+    my $self = shift;
+    my $xmlData = $self->getXmlData();
+    my $result = $xmlData->find('ReferenceCoded/ReferenceNumber')->string_value;
+    return $result;
+}
+
 sub getEanIdentifier {
     my $self = shift;
     my $xmlData = $self->getXmlData();
