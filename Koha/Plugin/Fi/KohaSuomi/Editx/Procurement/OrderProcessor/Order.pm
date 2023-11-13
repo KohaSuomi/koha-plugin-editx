@@ -22,7 +22,7 @@ sub createOrder {
                 title              => $itemDetail->getTitle(),
                 quantity           => $copyDetail->getCopyQuantity(),
                 order_vendornote   => $order->getFileName(),
-                order_internalnote => $itemDetail->getReferenceNumber() || $basketName,     
+                order_internalnote => $itemDetail->getReferenceNumber(),     
                 rrp                => $price,
                 rrp_tax_excluded   => $price,
                 rrp_tax_included   => $price,
