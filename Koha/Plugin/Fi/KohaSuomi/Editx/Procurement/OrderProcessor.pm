@@ -93,7 +93,7 @@ sub process {
         return 0;
     }
 
-    my ($item, $copyDetail, $copyQty, $barCode, $biblio, $biblioitem, $isbn, $basketNumber, $bookseller, $itemId, $orderId);
+    my ($item, $copyDetail, $copyQty, $barCode, $biblio, $biblioitem, $basketNumber, $bookseller, $itemId, $orderId);
     my $authoriser = $self->getAuthoriser();
     my $basketName = $order->getBasketName();
   
@@ -114,7 +114,7 @@ sub process {
                 $bookseller = $self->getBookseller($order);
                 $basketNumber = $basketHelper->getBasket($bookseller, $authoriser, $basketName );
                 
-                $orderId = $orderCreator->createOrder($copyDetail, $item, $order, $biblio, $basketNumber);
+                $orderId = $orderCreator->createOrder($copyDetail, $item, $order, $biblio, $basketNumber, $authoriser);
                 $self->getLogger()->log("createOrder orderId: " . $orderId);
                 for(my $i = 0; $copyQty > $i; $i++ ){
                     $itemId = $self->createItem($copyDetail, $item, $order, $barCode, $biblio, $biblioitem);

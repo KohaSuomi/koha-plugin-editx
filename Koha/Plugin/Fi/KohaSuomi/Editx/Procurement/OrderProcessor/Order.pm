@@ -8,13 +8,11 @@ use Data::Dumper;
 
 sub createOrder {
     my $self = shift;
-    my ($copyDetail, $itemDetail, $order, $biblio, $basketNumber, $basketName) = @_;
+    my ($copyDetail, $itemDetail, $order, $biblio, $basketNumber, $basketName, $authoriser) = @_;
     my $price = $itemDetail->getPriceFixedRPExcludingTax();
     my $tax_price = $itemDetail->getPriceFixedRPExcludingTax();
     my $budgetId = $self->getBudgetId($copyDetail->getFundNumber());
     
-    my $orderinfo;
-
         $order = Koha::Acquisition::Order->new(
             {
                 basketno           => $basketNumber,
@@ -22,7 +20,8 @@ sub createOrder {
                 title              => $itemDetail->getTitle(),
                 quantity           => $copyDetail->getCopyQuantity(),
                 order_vendornote   => $order->getFileName(),
-                order_internalnote => $itemDetail->getReferenceNumber(),     
+                order_internalnote => $itemDetail->getReferenceNumber(),  
+                created_by         => $authoriser,    
                 rrp                => $price,
                 rrp_tax_excluded   => $price,
                 rrp_tax_included   => $price,
