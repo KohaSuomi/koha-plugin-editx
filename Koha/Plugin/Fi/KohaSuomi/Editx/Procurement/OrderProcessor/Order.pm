@@ -8,7 +8,7 @@ use Data::Dumper;
 
 sub createOrder {
     my $self = shift;
-    my ($copyDetail, $itemDetail, $order, $biblio, $basketNumber, $basketName, $authoriser) = @_;
+    my ($copyDetail, $itemDetail, $order, $biblio, $basketNumber, $authoriser) = @_;
     my $price = $itemDetail->getPriceFixedRPExcludingTax();
     my $tax_price = $itemDetail->getPriceFixedRPExcludingTax();
     my $budgetId = $self->getBudgetId($copyDetail->getFundNumber());
