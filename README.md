@@ -12,7 +12,7 @@ SFTP tunnukset ovat muotoa [k]-[r]-editx, mutta jos kyseessä on tuotantotunnus 
 
 ## Rajapinnan konfigurointi
 
-Konfiguraatio on tiedostossa ~/koha-dev/etc/procurement_config.xml:
+Konfiguraatio on tiedostossa /etc/koha/procurement_config.xml:
 
 ```
 <?xml version="1.0"?>
