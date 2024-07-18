@@ -6,7 +6,7 @@ Tämä plugin lisää EDItX tuen Kohaan.
 
 Koha-Suomessa uudet kontainerit muodostetaan konew -skriptillä. Pääosa asetuksista tulee uuden kontin muodostamisvaiheessa valmiina. Erikseen täytyy luoda vielä SFTP tiedonsiirtoja varten tunnukset sekä päivittää rajapinnan konfiguraatioon käytettävä procurement-config.xml
 
-## SFTP Tunnukset
+## SFTP-tunnukset
 
 SFTP tunnukset ovat muotoa [k]-[r]-editx, mutta jos kyseessä on tuotantotunnus -[r] jätetään pois. Kutakin kimppaa varten tarvitaan periaatteessa kaksi tunnusta. "kimppa-test-editx" ja "kimppa-editx". Tunnukset luodaan makeeditxaccount -skriptillä (host-toolsissa). Skripti luo tunnukset ja ohjeistaa niiden käyttöönoton.
 
