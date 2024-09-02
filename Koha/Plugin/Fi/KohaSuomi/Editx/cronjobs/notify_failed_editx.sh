@@ -79,7 +79,7 @@ test -z "$pending_files" && test -z "$failed_files" && exit 0 # Exit if nothing 
 
       if test $(stat -c %Y "$file") -lt $(($(date +%s) - 604800)); then
         printf "Sanoma $file vanhentunut ja se -hylätään-. Arkistoidaan hakemistoon $failed_archived_path.\n"
-        #mv "$file" "$failed_archived_path/"
+        mv "$file" "$failed_archived_path/"
       else
         printf "Sanoma $file on jätetty käsittelyjonoon ($tmp_path) odottamaan täydennystä.\n"
       fi
