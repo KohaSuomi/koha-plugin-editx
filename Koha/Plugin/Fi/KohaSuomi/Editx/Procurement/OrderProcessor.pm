@@ -242,7 +242,7 @@ sub getBiblioItemData {
     }
 
     if($ean && (!$rows || $rows->count <= 0)){
-        $rows = $self->getItemByColumns({ ean =>$ean});
+        $rows = $self->getItemsByEan($ean);
     }
     if($publishercode && $editionresponsibility && (!$rows || $rows->count <= 0)){
         $rows = $self->getItemByColumns({ publishercode => $publishercode, editionresponsibility => $editionresponsibility });
@@ -342,6 +342,18 @@ sub getItemsByIsbns {
 
     if(@isbnArray > 0){
         $result = $resultSet->search({'isbn' => {'in' => @isbnArray}},{ select => [qw/isbn biblionumber biblioitemnumber/] });
+    }
+    return $result;
+}
+
+sub getItemsByEan {   
+    my $self = shift;
+    my $ean = $_[0];
+    my $resultSet = $self->getSchema()->resultset(Koha::Biblioitem->_type());
+    my $result = -1;
+
+    if($ean){
+        $result = $resultSet->search({'ean' => {'like' => "%$ean%"}},{ select => [qw/isbn biblionumber biblioitemnumber/] });
     }
     return $result;
 }
