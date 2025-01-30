@@ -115,18 +115,9 @@ test -z "$pending_files" && test -z "$failed_files" && exit 0 # Exit if nothing 
 
       if ! xmllint --noout "$file" 2> /dev/null ; then
         printf "\nSanoma on formaatiltaan virheellinen."
-        #mv "$file" "$failed_archived_path/"
+        mv "$file" "$failed_archived_path/"
         continue
       fi
-
-      #if test $(stat -c %Y "$file") -lt $(($(date +%s) - 604800)); then
-        #printf "\nSanoma on vanhentunut ja se hylätään. Arkistoitu hakemistoon $failed_archived_path.\n"
-        #mv "$file" "$failed_archived_path/"
-        #continue
-      #fi
-
-      #printf "\nSanoma on palautettu käsittelyjonoon ($tmp_path). Käsittelyä yritetään uudelleen ajastuksen mukaisesti.\n"
-      #mv "$file" "$tmp_path/"
 
     done
 
@@ -137,4 +128,5 @@ test -z "$pending_files" && test -z "$failed_files" && exit 0 # Exit if nothing 
 
 ) | $mailer $mailfrom -s "EDItX tilaussanomien käsittelyssä oli ongelmia" $mailto
 
-#All done, exit gracefully
+# All done, exit gracefully
+exit 0
