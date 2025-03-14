@@ -116,7 +116,7 @@ Sanoman tiedosto tulee olla xml-muodossa.
         </ReferenceCoded>
         <PricingDetail>
             <Price>
-                <MonetaryAmount>23.79</MonetaryAmount>
+                <MonetaryAmount>13.68</MonetaryAmount>
                 <CurrencyCode>EUR</CurrencyCode>
                 <CountryCode>FI</CountryCode>
                 <PriceQualifierCode>FixedRPIncludingTax</PriceQualifierCode>
@@ -128,7 +128,7 @@ Sanoman tiedosto tulee olla xml-muodossa.
         </PricingDetail>
         <PricingDetail>
             <Price>
-                <MonetaryAmount>20.87</MonetaryAmount>
+                <MonetaryAmount>12.00</MonetaryAmount>
                 <CurrencyCode>EUR</CurrencyCode>
                 <CountryCode>FI</CountryCode>
                 <PriceQualifierCode>FixedRPExcludingTax</PriceQualifierCode>
