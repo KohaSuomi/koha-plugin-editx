@@ -17,7 +17,7 @@ our $metadata = {
     minimum_version => '21.05',
     maximum_version => '',
     version         => $VERSION,
-    description     => 'Adds EDItX functionality to Koha',
+    description     => 'Adds EDItX functionality to Koha. (Paikalliskannat)',
 };
 ## This is the minimum code required for a plugin's 'new' method
 ## More can be added, but none should be removed
