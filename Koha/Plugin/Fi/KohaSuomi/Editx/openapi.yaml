@@ -1,0 +1,28 @@
+"/editx":
+  post:
+    x-mojo-to: "Koha::Plugin::Fi::KohaSuomi::Editx::Controllers::EditxController#add"
+    operationId: postEditx
+    tags:
+      - biblios
+    parameters:
+      - name: body
+        in: body
+        description: Editx contents
+        required: true
+        schema:
+          type: object
+    produces:
+      - application/json
+    responses:
+      "200":
+        description: A biblio record with componentparts
+        schema:
+          type: object
+      "404":
+        description: An error occured
+        schema:
+          type: object
+          properties:
+            error:
+              description: Biblio not found
+              type: string

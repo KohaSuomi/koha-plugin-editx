@@ -5,9 +5,10 @@ use Modern::Perl;
 use base qw(Koha::Plugins::Base);
 ## We will also need to include any Koha libraries we want to access
 use C4::Context;
+use JSON::Validator::Schema::OpenAPIv2;
 use utf8;
 ## Here we set our plugin version
-our $VERSION = "1.0.1";
+our $VERSION = "1.0.2";
 ## Here is our metadata, some keys are required, some are optional
 our $metadata = {
     name            => 'EDItX-plugin',
@@ -38,12 +39,15 @@ sub new {
 ## or false if it failed.
 sub install() {
     my ( $self, $args ) = @_;
+    $self->createTables();
     return 1;
 }
 ## This is the 'upgrade' method. It will be triggered when a newer version of a
 ## plugin is installed over an existing older version of a plugin
 sub upgrade {
     my ( $self, $args ) = @_;
+    
+    $self->createTables();
     return 1;
 }
 ## This method will be run just before the plugin files are deleted
@@ -53,4 +57,54 @@ sub uninstall() {
     my ( $self, $args ) = @_;
     return 1;
 }
+
+sub createTables {
+    my ( $self ) = @_;
+
+    my $dbh = C4::Context->dbh;
+
+    my $editxTable = $self->get_qualified_table_name('contents');
+
+
+    $dbh->do("CREATE TABLE IF NOT EXISTS `$editxTable` (
+    `id` int NOT NULL AUTO_INCREMENT,
+    `name` varchar(255),
+    `content` longtext NOT NULL,
+    `status` ENUM('pending', 'processing', 'completed', 'failed') NOT NULL,
+    `timestamp` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+
+}
+
+
+sub api_routes {
+    my ( $self, $args ) = @_;
+
+    my $spec_dir = $self->mbf_dir();
+    my $spec_file = $spec_dir . '/openapi.yaml';
+
+    my $schema = JSON::Validator::Schema::OpenAPIv2->new;
+    $schema->resolve( $spec_file );
+
+    return $schema->bundle->data;
+}
+
+sub api_namespace {
+    my ( $self ) = @_;
+    
+    return 'kohasuomi';
+}
+
+
+
+
+
 1;
+
+
+
+
+
+
