@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Editx Sanomat</title>
+    <link rel="stylesheet" href="[% PLUGIN_PATH %]/includes/styles.css">
+    
+</head>
+<body>
+    <div id="editxApp">
+        <h1>Editx Sanomat</h1>
+        <table id="contents-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Lähetysilmoituksen numero</th>
+                    <th>Tila</th>
+                    <th>Toiminnot</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="content in contents" :key="content.id">
+                    <td>{{ content.id }}</td>
+                    <td>{{ content.name }}</td>
+                    <td>{{ content.status }} - {{ translateStatus(content.status) }}</td>
+                    <td>
+                        
+                        <button @click="setPending(content.id)">Aseta Odottaa-tilaan</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="[% PLUGIN_PATH %]/js/app.js"></script>
+</body>
+</html>

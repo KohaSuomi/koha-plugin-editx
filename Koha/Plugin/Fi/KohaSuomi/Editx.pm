@@ -33,6 +33,24 @@ sub new {
     my $self = $class->SUPER::new($args);
     return $self;
 }
+
+sub admin {
+
+    my ( $self, $args ) = @_;
+    my $cgi = $self->{'cgi'};
+    print $cgi->header(); 
+    
+    my $template = $self->get_template( { file => 'admin_editx.tt' } );
+    
+   
+    print $template->output();
+   
+
+
+}
+
+
+
 ## This is the 'install' method. Any database tables or other setup that should
 ## be done when the plugin if first installed should be executed in this method.
 ## The installation method should always return true if the installation succeeded
@@ -68,9 +86,9 @@ sub createTables {
 
     $dbh->do("CREATE TABLE IF NOT EXISTS `$editxTable` (
     `id` int NOT NULL AUTO_INCREMENT,
-    `name` varchar(255),
+    `name` varchar(255) NOT NULL,
     `content` longtext NOT NULL,
-    `status` ENUM('pending', 'processing', 'completed', 'failed') NOT NULL,
+    `status` ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
     `timestamp` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

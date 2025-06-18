@@ -1,28 +1,125 @@
 "/editx":
   post:
-    x-mojo-to: "Koha::Plugin::Fi::KohaSuomi::Editx::Controllers::EditxController#add"
+    x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#add"
     operationId: postEditx
     tags:
       - biblios
     parameters:
       - name: body
         in: body
-        description: Editx contents
         required: true
+        description: Editx XML string
         schema:
-          type: object
+          type: string
     produces:
-      - application/json
+      - application/xml
     responses:
-      "200":
+      "201":
         description: A biblio record with componentparts
         schema:
           type: object
-      "404":
-        description: An error occured
+          properties:
+            message:
+              type: string
+              description: Success message
+      "400":
+        description: Bad request
         schema:
           type: object
           properties:
             error:
-              description: Biblio not found
               type: string
+              description: Invalid XML or missing required fields
+      "404":
+        description: An error occurred
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Biblio not found
+      "500":
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+  get:
+    x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#list"
+    operationId: listEditxContents
+    tags:
+      - editx
+    produces:
+      - application/json
+    responses:
+      "200":
+        description: A list of Editx messages
+        schema:
+          type: array
+      "500":
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+"/editx/{id}":
+  put:
+    x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#update"
+    operationId: putEditx
+    tags:
+      - editx
+    parameters:
+      - name: id
+        in: path
+        required: true
+        type: integer
+        description: ID of the Editx message to update
+      - name: status
+        in: query
+        required: true
+        description: Updated Editx XML string
+        type: string
+        enum:
+          - pending
+          - processing
+          - completed
+          - failed
+    produces:
+      - application/xml
+    responses:
+      "200":
+        description: Updated Editx message
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: Success message
+      "400":
+        description: Bad request
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Invalid XML or missing required fields
+      "404":
+        description: Not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Editx message not found
+      "500":
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
