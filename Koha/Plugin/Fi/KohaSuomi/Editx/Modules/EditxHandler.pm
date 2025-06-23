@@ -9,17 +9,23 @@ use XML::LibXML;
 
 sub new {
     my ($class, $data) = @_;
-    my $self = { data => $data};
+    my $self = {
+        data => {
+            id      => $data->{id},       # Correctly access $data as a hash reference
+            xml_doc => $data->{content}, # Map 'content' to 'xml_doc'
+        },
+        id => $data->{id}, # Set the id field
+    };
     bless($self, $class);
     return $self;
 }
-
 
 
 sub parse_xml {
     my ($self, $data) = @_;
     
     # Trim whitespace from the input data
+    $data //='';
     $data =~ s/^\s+|\s+$//g;
 
     # Here we parse and validate the XML data
@@ -57,10 +63,26 @@ sub extract_ship_notice_number {
         
 }
 
+
+sub id {
+    my $self = shift;
+    return $self->{id} // 'undefined';
+}
+
 sub process {
+
+    ## This method processes the Editx content
+    ## It retrieves the XML data, parses it, and updates the status in the database
+    
     my ($self) = @_;
 
     my $xml_data = $self->{data}->{xml_doc};
+
+    unless (defined $xml_data && $xml_data ne '') {
+        die "XML data for order ID " . $self->id;
+    }
+    print "Debug: XML data for order ID " . $self->id . ":\$xml_data\n";
+    
 
     my $parsed_result = $self->parse_xml($xml_data);
     if ($parsed_result->{status} != 200) {
@@ -77,7 +99,7 @@ sub process {
     print "Processing order with ShipNoticeNumber: $ship_notice_number\n";
 
     my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
-    $db->update_order_status($self->{data}->{id}, 'completed');
+    $db->update_status($self->{data}->{id}, 'completed');
 
     return 1;
 }

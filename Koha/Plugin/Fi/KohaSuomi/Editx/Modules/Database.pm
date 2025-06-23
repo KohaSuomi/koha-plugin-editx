@@ -9,6 +9,9 @@ use C4::Context;
 use Scalar::Util qw(blessed);
 
 
+## This is the Database module for the Editx plugin
+## It handles all database operations related to Editx contents
+
 sub new {
     my ($class, $params) = @_;
     my $self = {};
@@ -36,12 +39,14 @@ sub dbh {
 
 
 sub create {
+    ## This method creates a new Editx content in the database
+    ## It takes a hash reference of data to insert into the Editx table
+    ## It returns a hash reference with the status and message of the operation
     my ($self, $data) = @_;
     my $dbh = $self->dbh;
     my $table = $self->editx;   
     my $ship_notice_value = $data->{ship_notice_number};
     my $xml_doc = $data->{xml_doc};
-    # Insert the data into the database
     my $sql = "INSERT INTO $table ( name, content ) VALUES (?, ?)";
     my $sth = $dbh->prepare($sql);
     $sth->execute($ship_notice_value, $xml_doc);
@@ -52,6 +57,10 @@ sub create {
 
 
 sub read {
+
+    ## This method retrieves a specific Editx content by its ID
+    ## It takes the content ID as a parameter and returns an array reference of hash references
+    
     my ($self, $id) = @_;
     my $table = $self->editx;
     my $dbh = $self->dbh;
@@ -72,6 +81,9 @@ sub read {
 
 
 sub update {
+    ## This method updates seelected fields in the Editx table
+    ## It takes a hash reference of data to update and a hash reference of conditions to match
+    ## It returns the number of rows affected by the update operation
 
     my ($self, $table, $data, $where) = @_;
     $table = $self->editx;
@@ -114,11 +126,11 @@ sub delete {
 }
 
 
-
 sub get_all_contents {
+    ## This method retrieves all Editx contents from the database
+    ## It returns an array reference of hash references, each representing a content
     my $self = shift;
     my $table = $self->editx;
-
     my $dbh = C4::Context->dbh;
     my $query = "SELECT * FROM $table ";
     my $sth = $dbh->prepare($query);
@@ -131,6 +143,8 @@ sub get_all_contents {
 
 
 sub update_status {
+    ## This method updates the status of a specific Editx content
+    ## It takes the content ID and the new status as parameters
     my ($self, $id, $status) = @_;
     my $table = $self->editx;
     my $dbh = $self->dbh;
@@ -145,10 +159,13 @@ sub update_status {
 
 
 sub get_pending_contents {
+    ## This method retrieves all pending Editx contents from the database
+    ## It returns an array reference of EditxHandler objects for each pending content
+    ## This is useful for processing pending contents
     my $self = shift;
-
+    my $table = $self->editx;
     my $dbh = $self->dbh;
-    my $query = "SELECT * FROM content WHERE status = 'pending'";
+    my $query = "SELECT id, content FROM $table WHERE status = 'pending'";
     my $sth =  $dbh->prepare($query);
     $sth->execute();
 

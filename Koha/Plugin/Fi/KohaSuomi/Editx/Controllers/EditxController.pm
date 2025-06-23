@@ -12,18 +12,14 @@ use C4::Context;
 
 
 
-sub check_authorization {
-    my $c = shift;
-
-    unless ($c->req->headers->header('x-koha-authorization') eq 'your-secret-key here') {
-        return $c->render(status => 403, openapi => {error => "Unauthorized access"});
-    }
-}
-
 sub add {
+
+    ## In this we will handle the addition of new Editx Contents
+    ## We will parse the XML, validate it, and then save it to the database
+    ## If the XML is invalid, we will return an error response
     
     my $c = shift->openapi->valid_input or return;
-    check_authorization($c);
+    
 
     my $req  = $c->req->body;
     warn Data::Dumper::Dumper($req);
@@ -51,9 +47,12 @@ sub add {
 
 
 sub list {
+
+    ## In this method we will handle the retrieval of all Editx contents
+    ## We will fetch all contents from the database and return them
+
     
     my $c = shift->openapi->valid_input or return;
-    check_authorization($c);
 
     try {
         my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
@@ -70,8 +69,10 @@ sub list {
 
 
 sub update {
+
+    ## In this method we will handle the update of Editx contents
+    ## We will update the status of a specific content based on the ID provided
     my $c = shift->openapi->valid_input or return;
-    check_authorization($c);
 
     my $id = $c->validation->param('id');
     my $status = $c->validation->param('status');
