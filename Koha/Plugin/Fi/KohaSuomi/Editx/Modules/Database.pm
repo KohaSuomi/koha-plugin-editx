@@ -176,4 +176,21 @@ sub get_pending_contents {
     return \@orders;
 }
 
+
+
+sub mark_order_as_completed {
+    ## This method marks a specific Editx content as completed
+    ## It takes the content ID as a parameter
+    my ($self, $id) = @_;
+    return $self->update_status($id, 'completed');
+}
+
+
+sub mark_order_as_failed {
+    ## This method marks a specific Editx content as failed
+    ## It takes the content ID as a parameter
+    my ($self, $id) = @_;
+    return $self->update_status($id, 'failed');
+}
+
 1;
