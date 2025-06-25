@@ -1,5 +1,4 @@
 package Koha::Plugin::Fi::KohaSuomi::Editx::Controllers::EditxController;
-
 use Modern::Perl;
 use Mojo::Base 'Mojolicious::Controller';
 use Try::Tiny;
@@ -14,10 +13,7 @@ sub add {
     ## We will parse the XML, validate it, and then save it to the database
     ## If the XML is invalid, we will return an error response
     my $c = shift->openapi->valid_input or return;
-
-
-    my $logger = Koha::Logger->get({ interface=> 'api' });
-    
+    my $logger = Koha::Logger->get({ interface=> 'api' });   
     my $req  = $c->req->body;
     try {
         my $handler = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler->new();

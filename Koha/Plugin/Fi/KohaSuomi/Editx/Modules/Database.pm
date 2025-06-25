@@ -17,7 +17,6 @@ sub new {
     return $self;
 }
 
-
 sub plugin {
     my ($self) = @_;
     return Koha::Plugin::Fi::KohaSuomi::Editx->new();
