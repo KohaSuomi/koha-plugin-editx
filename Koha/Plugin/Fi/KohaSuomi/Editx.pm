@@ -50,7 +50,6 @@ sub admin {
 ## The installation method should always return true if the installation succeeded
 ## or false if it failed.
 sub install() {
-    warn "Install-metodi kutsuttu";
     my ( $self, $args ) = @_;
     $self->create_editx_contents_table();
     $self->create_map_productform();
@@ -94,12 +93,7 @@ sub create_editx_contents_table {
 sub create_map_productform {
     my ( $self ) = @_;
     my $dbh = C4::Context->dbh;
-    if (!$dbh) {
-        warn "Tietokantayhteys epäonnistui!";
-    } else {
-        warn "Tietokantayhteys onnistui!";
-    }
-    my $map_productform_table = $self->get_qualified_table_name('map_productform');
+    my $map_productform_table = 'map_productform';
     $dbh->do("CREATE TABLE IF NOT EXISTS `$map_productform_table` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
             `onix_code` varchar(2) DEFAULT NULL,
@@ -110,11 +104,9 @@ sub create_map_productform {
         ");
     };
 
-
 sub sql_insert_data {
     my ($self) = @_;
     my $dbh = C4::Context->dbh;
-
     $dbh->do("INSERT INTO map_productform (onix_code, productform, productform_alternative) VALUES
         ('AA', '28VRK', '28VRKLN'),
         ('AB', '28VRKAV', '28VRKLNAV'),
@@ -264,8 +256,7 @@ sub sql_insert_data {
         ('ZZ', '28VRK', '28VRKLN'),
         ('00', '28VRK', '28VRKLN');
         ");    
-    }  
- 
+    }   
 1;
 
 
