@@ -49,7 +49,6 @@ sub test_post_invalid_xml {
 }
 
 
-
 # Test: GET request to retrieve messages
 sub test_get_messages {
     my $req = HTTP::Request->new(GET => $url);
@@ -81,9 +80,6 @@ sub test_put_update_status {
         say "PUT update status test failed: " . $response->status_line;
     }
 }
-
-
-
 # Execute tests
 test_post_valid_xml();
 test_post_invalid_xml();

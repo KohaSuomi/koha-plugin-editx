@@ -9,18 +9,13 @@ use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database;
 use C4::Context;
 
 
-
-
-
 sub add {
 
     ## In this we will handle the addition of new Editx Contents
     ## We will parse the XML, validate it, and then save it to the database
     ## If the XML is invalid, we will return an error response
-    
     my $c = shift->openapi->valid_input or return;
     
-
     my $req  = $c->req->body;
     warn Data::Dumper::Dumper($req);
     try {
@@ -45,13 +40,10 @@ sub add {
 }
 
 
-
 sub list {
 
     ## In this method we will handle the retrieval of all Editx contents
     ## We will fetch all contents from the database and return them
-
-    
     my $c = shift->openapi->valid_input or return;
 
     try {
@@ -77,13 +69,10 @@ sub update {
     my $id = $c->validation->param('id');
     my $status = $c->validation->param('status');
 
-
     unless ($status =~ /^(pending|processing|completed|failed)$/) {
         return $c->render(status => 400, openapi => {error => "Invalid status value"});
 
     }
-
-
     try {
         my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
         my $result = $db->update_status($id, $status);
@@ -99,9 +88,5 @@ sub update {
         warn Data::Dumper::Dumper($error);
         return $c->render(status => 500, openapi => {error => "Failed to update status"});
     }
-
-
-
 }
-
 1;

@@ -1,10 +1,7 @@
 package Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler;
-
-
 use Modern::Perl;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database;
 use XML::LibXML;
-
 
 
 sub new {
@@ -41,26 +38,18 @@ sub parse_xml {
             message => "Invalid XML format "
         };
     }
-
     return { status => 200, xml_doc => $xml_doc };
-
 }
 
 
-
-
-
-
 sub extract_ship_notice_number {
-
     my ($self, $xml_doc) = @_;
 
     # This method extracts the ShipNoticeNumber from the XML document
     # If the ShipNoticeNumber is not found, we will throw an error
 
     my ($ship_notice_number) = $xml_doc ->findnodes('//ShipNoticeNumber');
-    return $ship_notice_number;
-        
+    return $ship_notice_number;        
 }
 
 
@@ -70,12 +59,10 @@ sub id {
 }
 
 sub process {
-
     ## This method processes the Editx content
     ## It retrieves the XML data, parses it, and updates the status in the database
     
     my ($self) = @_;
-
     my $xml_data = $self->{data}->{xml_doc};
 
     unless (defined $xml_data && $xml_data ne '') {
@@ -83,7 +70,6 @@ sub process {
     }
     print "Debug: XML data for order ID " . $self->id . ":\$xml_data\n";
     
-
     my $parsed_result = $self->parse_xml($xml_data);
     if ($parsed_result->{status} != 200) {
         die "Error parsing XML: " . $parsed_result->{message};
@@ -103,9 +89,4 @@ sub process {
 
     return 1;
 }
-
-   
-
-
-
 1;

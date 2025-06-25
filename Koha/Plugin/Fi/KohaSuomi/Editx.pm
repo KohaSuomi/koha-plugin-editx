@@ -20,6 +20,8 @@ our $metadata = {
     version         => $VERSION,
     description     => 'Adds EDItX functionality to Koha. (Paikalliskannat)',
 };
+
+
 ## This is the minimum code required for a plugin's 'new' method
 ## More can be added, but none should be removed
 sub new {
@@ -35,20 +37,13 @@ sub new {
 }
 
 sub admin {
-
     my ( $self, $args ) = @_;
     my $cgi = $self->{'cgi'};
     print $cgi->header(); 
-    
     my $template = $self->get_template( { file => 'admin_editx.tt' } );
-    
-   
+
     print $template->output();
-   
-
-
 }
-
 
 
 ## This is the 'install' method. Any database tables or other setup that should
@@ -80,9 +75,7 @@ sub createTables {
     my ( $self ) = @_;
 
     my $dbh = C4::Context->dbh;
-
     my $editxTable = $self->get_qualified_table_name('contents');
-
 
     $dbh->do("CREATE TABLE IF NOT EXISTS `$editxTable` (
     `id` int NOT NULL AUTO_INCREMENT,
@@ -93,7 +86,6 @@ sub createTables {
     PRIMARY KEY (`id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
-
 }
 
 
@@ -105,7 +97,6 @@ sub api_routes {
 
     my $schema = JSON::Validator::Schema::OpenAPIv2->new;
     $schema->resolve( $spec_file );
-
     return $schema->bundle->data;
 }
 
@@ -114,11 +105,6 @@ sub api_namespace {
     
     return 'kohasuomi';
 }
-
-
-
-
-
 1;
 
 

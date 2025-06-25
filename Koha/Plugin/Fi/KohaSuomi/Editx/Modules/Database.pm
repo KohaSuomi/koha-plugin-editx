@@ -1,6 +1,4 @@
 package Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database;
-
-
 use Modern::Perl;
 use XML::LibXML;
 use Koha::Plugin::Fi::KohaSuomi::Editx;
@@ -11,7 +9,6 @@ use Scalar::Util qw(blessed);
 
 ## This is the Database module for the Editx plugin
 ## It handles all database operations related to Editx contents
-
 sub new {
     my ($class, $params) = @_;
     my $self = {};
@@ -19,6 +16,7 @@ sub new {
     bless($self, $class);
     return $self;
 }
+
 
 sub plugin {
     my ($self) = @_;
@@ -31,11 +29,11 @@ sub editx {
     return $self ->plugin->get_qualified_table_name('contents');
 }
 
+
 sub dbh {
     my ($self) = @_;
     return C4::Context->dbh;
 }
-
 
 
 sub create {
@@ -46,6 +44,7 @@ sub create {
     my $dbh = $self->dbh;
     my $table = $self->editx;   
     my $ship_notice_value = $data->{ship_notice_number};
+    
     my $xml_doc = $data->{xml_doc};
     my $sql = "INSERT INTO $table ( name, content ) VALUES (?, ?)";
     my $sth = $dbh->prepare($sql);
@@ -60,7 +59,6 @@ sub read {
 
     ## This method retrieves a specific Editx content by its ID
     ## It takes the content ID as a parameter and returns an array reference of hash references
-    
     my ($self, $id) = @_;
     my $table = $self->editx;
     my $dbh = $self->dbh;
@@ -68,23 +66,17 @@ sub read {
     my $sql = "SELECT * FROM $table WHERE id = ?";
     my $sth = $dbh->prepare($sql);
 
-
     $sth->execute($id);
     return $sth->fetchall_arrayref({})  if $sth->rows > 0;
-
-
-
-
     return [];
-
 }
 
 
 sub update {
+    
     ## This method updates seelected fields in the Editx table
     ## It takes a hash reference of data to update and a hash reference of conditions to match
     ## It returns the number of rows affected by the update operation
-
     my ($self, $table, $data, $where) = @_;
     $table = $self->editx;
     my $dbh = $self->dbh;
@@ -100,9 +92,6 @@ sub update {
     my $sth = $dbh->prepare($sql);
     $sth->execute((@{$data}{@set_fields}, @{$where}{@where_fields}));
     return $sth->rows;
-
-
-
 }
 
 
@@ -110,7 +99,6 @@ sub delete {
    my ($self, $id) = @_;
     my $table = $self->editx;
     my $dbh = $self->dbh;
-
      
     my $sql = "DELETE FROM $table WHERE id = ?";
     my $sth = $dbh->prepare($sql);
@@ -118,11 +106,6 @@ sub delete {
      $sth = $dbh->prepare($sql);
     $sth->execute($id);
     return $sth->rows;
-
-
-
-    
-
 }
 
 
@@ -137,8 +120,6 @@ sub get_all_contents {
     $sth->execute();
 
     return $sth->fetchall_arrayref({});
-
-
 }
 
 
@@ -148,7 +129,6 @@ sub update_status {
     my ($self, $id, $status) = @_;
     my $table = $self->editx;
     my $dbh = $self->dbh;
-
 
     my $sql = "UPDATE $table SET status = ? WHERE id = ?";
     my $sth = $dbh->prepare($sql);
@@ -192,5 +172,4 @@ sub mark_order_as_failed {
     my ($self, $id) = @_;
     return $self->update_status($id, 'failed');
 }
-
 1;

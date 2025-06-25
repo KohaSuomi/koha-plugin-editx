@@ -10,7 +10,6 @@ use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator;
 
 
-
 my $config = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 my $settings = $config->getSettings();
 my $logPath;
@@ -28,7 +27,6 @@ my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
 $logger->log("Started Koha::Procurement", 1);
 
 my $pending_contents = $db->get_pending_contents() // [];
-
 
 
 if (@$pending_contents) {
@@ -54,7 +52,6 @@ if (@$pending_contents) {
 } else {
     $logger->log("no penfing orders found in the database.");
 }
-
 
 $logger->log("Ended Koha::Plugin::Fi::KohaSuomi::Editx::Procurement", 1);
 
