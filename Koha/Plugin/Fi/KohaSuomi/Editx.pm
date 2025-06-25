@@ -50,6 +50,7 @@ sub admin {
 ## The installation method should always return true if the installation succeeded
 ## or false if it failed.
 sub install() {
+    warn "Install-metodi kutsuttu";
     my ( $self, $args ) = @_;
     $self->create_editx_contents_table();
     $self->create_map_productform();
@@ -60,10 +61,6 @@ sub install() {
 ## plugin is installed over an existing older version of a plugin
 sub upgrade {
     my ( $self, $args ) = @_;
-    
-    $self->create_editx_contents_table();
-    $self->create_map_productform();
-    $self->sql_insert_data();
     return 1;
 }
 ## This method will be run just before the plugin files are deleted
@@ -95,32 +92,30 @@ sub create_editx_contents_table {
 }
 
 sub create_map_productform {
-    my ($self) = @_;
+    my ( $self ) = @_;
     my $dbh = C4::Context->dbh;
-    my $table = $self->get_qualified_table_name('map_productform');
-    
-    my $sql_create_table = q{
-        CREATE TABLE IF NOT EXISTS `map_productform` (
+    if (!$dbh) {
+        warn "Tietokantayhteys epäonnistui!";
+    } else {
+        warn "Tietokantayhteys onnistui!";
+    }
+    my $map_productform_table = $self->get_qualified_table_name('map_productform');
+    $dbh->do("CREATE TABLE IF NOT EXISTS `$map_productform_table` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
             `onix_code` varchar(2) DEFAULT NULL,
             `productform` varchar(10) DEFAULT NULL,
             `productform_alternative` varchar(10) DEFAULT NULL,
             PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
     };
-    
-    $dbh->do($sql_create_table);
-    
-    return 1;
-}
+
 
 sub sql_insert_data {
     my ($self) = @_;
     my $dbh = C4::Context->dbh;
-    my $table = $self->get_qualified_table_name('map_productform');
 
-    my $sql_insert_data = q{
-        INSERT INTO map_productform (onix_code, productform, productform_alternative) VALUES
+    $dbh->do("INSERT INTO map_productform (onix_code, productform, productform_alternative) VALUES
         ('AA', '28VRK', '28VRKLN'),
         ('AB', '28VRKAV', '28VRKLNAV'),
         ('AC', '28VRKAV', '28VRKLNAV'),
@@ -268,11 +263,9 @@ sub sql_insert_data {
         ('ZY', '28VRK', '28VRKLN'),
         ('ZZ', '28VRK', '28VRKLN'),
         ('00', '28VRK', '28VRKLN');
-        };
-
-    $dbh->do(sql_insert_data);    
-    return 1;
-}   
+        ");    
+    }  
+ 
 1;
 
 
