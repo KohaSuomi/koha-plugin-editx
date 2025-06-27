@@ -17,7 +17,6 @@ sub test_post_valid_xml {
     <ShipNoticeNumber>12345</ShipNoticeNumber>
 </ShipNotice>
 XML
-
     my $req = HTTP::Request->new(POST => $url);
     $req->header('Content-Type' => 'application/xml');
     $req->content($xml_body);
@@ -48,7 +47,6 @@ sub test_post_invalid_xml {
     }
 }
 
-
 # Test: GET request to retrieve messages
 sub test_get_messages {
     my $req = HTTP::Request->new(GET => $url);
@@ -64,7 +62,6 @@ sub test_get_messages {
     }
 
 }
-
 
 sub test_put_update_status {
     my $id = 1;

@@ -108,6 +108,29 @@ sub parseFile{
     return $object;
 }
 
+
+sub parseDb {
+    my $self = shift;
+    my $xml = $_[0];
+    my $object = 0;
+
+    if($xml){
+        my $parser = XML::LibXML->new(no_blanks => 1);
+        $parser = eval { $parser->load_xml('string' => $xml) };
+
+        if($parser){
+            my $xpathContext = XML::LibXML::XPathContext->new($parser);
+            $object = $self->objectFactory->createFromXml($xpathContext, $parser);
+        }
+        else{
+            $self->getLogger()->log("The xml is not a valid xmlfile.");
+            $self->getLogger()->log("Errors: $@");
+        }
+    }
+
+    return $object;
+}
+
 sub getFileNamesInDirectory{
     my $self = shift;
     my $dirPath = $_[0];

@@ -5,8 +5,6 @@ use Koha::Plugin::Fi::KohaSuomi::Editx;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler;
 use C4::Context;
 use Scalar::Util qw(blessed);
-
-
 ## This is the Database module for the Editx plugin
 ## It handles all database operations related to Editx contents
 sub new {
@@ -22,18 +20,15 @@ sub plugin {
     return Koha::Plugin::Fi::KohaSuomi::Editx->new();
 }
 
-
 sub editx {
     my ($self) = @_;
     return $self ->plugin->get_qualified_table_name('contents');
 }
 
-
 sub dbh {
     my ($self) = @_;
     return C4::Context->dbh;
 }
-
 
 sub create {
     ## This method creates a new Editx content in the database
@@ -52,8 +47,6 @@ sub create {
     return { status => 201, message => "Data saved successfully"};
 }
 
-
-
 sub read {
 
     ## This method retrieves a specific Editx content by its ID
@@ -69,7 +62,6 @@ sub read {
     return $sth->fetchall_arrayref({})  if $sth->rows > 0;
     return [];
 }
-
 
 sub update {
     
@@ -93,7 +85,6 @@ sub update {
     return $sth->rows;
 }
 
-
 sub delete {
    my ($self, $id) = @_;
     my $table = $self->editx;
@@ -107,7 +98,6 @@ sub delete {
     return $sth->rows;
 }
 
-
 sub get_all_contents {
     ## This method retrieves all Editx contents from the database
     ## It returns an array reference of hash references, each representing a content
@@ -120,7 +110,6 @@ sub get_all_contents {
 
     return $sth->fetchall_arrayref({});
 }
-
 
 sub update_status {
     ## This method updates the status of a specific Editx content
@@ -136,26 +125,26 @@ sub update_status {
     return $sth->rows > 0;
 }
 
-
 sub get_pending_contents {
     ## This method retrieves all pending Editx contents from the database
     ## It returns an array reference of EditxHandler objects for each pending content
-    ## This is useful for processing pending contents
     my $self = shift;
     my $table = $self->editx;
     my $dbh = $self->dbh;
     my $query = "SELECT id, content FROM $table WHERE status = 'pending'";
-    my $sth =  $dbh->prepare($query);
-    $sth->execute();
+    my $sth = $dbh->prepare($query);
+    $sth->execute() or die "Failed to execute query: " . $dbh->errstr;
 
     my @orders;
     while (my $row = $sth->fetchrow_hashref) {
+        unless (defined $row->{id} && defined $row->{content}) {
+            warn "Row is missing required fields: " . Data::Dumper::Dumper($row);
+            next;
+        }
         push @orders, Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler->new($row);
     }
     return \@orders;
 }
-
-
 
 sub mark_order_as_completed {
     ## This method marks a specific Editx content as completed
@@ -163,7 +152,6 @@ sub mark_order_as_completed {
     my ($self, $id) = @_;
     return $self->update_status($id, 'completed');
 }
-
 
 sub mark_order_as_failed {
     ## This method marks a specific Editx content as failed

@@ -30,7 +30,7 @@
             </tbody>
         </table>
     </div>
-    <script src="[% PLUGIN_PATH "]/includes/vue.global.prod.js"></script>
+    <script src="[% PLUGIN_PATH %]/includes/vue.global.prod.js"></script>
     <script src="[% PLUGIN_PATH %]/includes/axios.min.js"></script>
     <script src="[% PLUGIN_PATH %]/js/app.js"></script>
 </body>
