@@ -131,7 +131,7 @@ sub get_pending_contents {
     my $self = shift;
     my $table = $self->editx;
     my $dbh = $self->dbh;
-    my $query = "SELECT id, content FROM $table WHERE status = 'pending'";
+    my $query = "SELECT id, name, content FROM $table WHERE status = 'pending'";
     my $sth = $dbh->prepare($query);
     $sth->execute() or die "Failed to execute query: " . $dbh->errstr;
 
