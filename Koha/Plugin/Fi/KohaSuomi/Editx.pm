@@ -54,6 +54,7 @@ sub install() {
     $self->create_editx_contents_table();
     $self->create_map_productform();
     $self->sql_insert_data();
+    $self->create_sequences_table();
     return 1;
 }
 ## This is the 'upgrade' method. It will be triggered when a newer version of a
@@ -257,6 +258,16 @@ sub sql_insert_data {
         ('00', '28VRK', '28VRKLN');
         ");    
     }   
+
+sub create_sequences_table {
+    my ( $self ) = @_;
+    my $dbh = C4::Context->dbh;
+    my $sequences_table = 'sequences';
+    $dbh->do("CREATE TABLE IF NOT EXISTS `sequences` (
+  `invoicenumber` bigint(20) unsigned DEFAULT NULL,
+  `item_barcode_nextval` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
 1;
 
 
