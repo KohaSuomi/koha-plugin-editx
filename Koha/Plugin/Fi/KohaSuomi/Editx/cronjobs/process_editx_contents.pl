@@ -38,11 +38,6 @@ my $parser = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Pa
             'schemaPath','/var/lib/koha/plugins/Koha/Plugin/Fi/KohaSuomi/Editx/Procurement/EditX/XmlSchema/'
         ))
     ));
-my $libraryShipNoticePath;
-    if(defined $settings->{'settings'}->{'import_load_path'}){
-    $libraryShipNoticePath = $settings->{'settings'}->{'import_load_path'};
-}
-
 
 my $pending_orders = $db->get_pending_contents();
 foreach my $order_row (@$pending_orders) {
