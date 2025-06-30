@@ -772,6 +772,7 @@ sub getAuthoriser {
     my $self = shift;
     my $authoriser;
     my $settings = $self->getConfig()->getSettings();
+     warn Dumper($settings);
     if(defined $settings->{settings}->{authoriser} ){
         $authoriser = $settings->{settings}->{authoriser};
     }

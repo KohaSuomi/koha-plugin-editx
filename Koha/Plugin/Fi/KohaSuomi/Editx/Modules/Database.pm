@@ -135,15 +135,7 @@ sub get_pending_contents {
     my $sth = $dbh->prepare($query);
     $sth->execute() or die "Failed to execute query: " . $dbh->errstr;
 
-    my @orders;
-    while (my $row = $sth->fetchrow_hashref) {
-        unless (defined $row->{id} && defined $row->{content}) {
-            warn "Row is missing required fields: " . Data::Dumper::Dumper($row);
-            next;
-        }
-        push @orders, Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler->new($row);
-    }
-    return \@orders;
+    return $sth->fetchall_arrayref({});
 }
 
 sub mark_order_as_completed {
