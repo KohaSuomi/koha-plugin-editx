@@ -31,13 +31,21 @@ my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
 
 $logger->log("Started Koha::Procurement from database", 1);
 
+my $parser = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser((
+    'objectFactory', new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice((
+            'schemaPath','/var/lib/koha/plugins/Koha/Plugin/Fi/KohaSuomi/Editx/Procurement/EditX/XmlSchema/'
+        ))
+    ));
+
 my $pending_orders = $db->get_pending_contents();
-my $order_row;
-while ($order_row = $pending_orders->next) {
+foreach my $order_row (@$pending_orders) {
     try {
         
         $logger->log("Started processing order ID " . $order_row->id);
-        $orderProcessor->process($order_row);
+        # Create an order object from the database content
+        my $order_object = $parser->parseDb($order_row->{content});
+        # Process the order object
+        $orderProcessor->process($order_object);
 
         # Päivitä tilauksen tila tietokannassa
         $order_row->update({ status => 'processed' });
