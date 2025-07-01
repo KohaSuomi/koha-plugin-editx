@@ -22,8 +22,7 @@ sub add {
             warn "Invalid XML: " . $valid_xml->{message};
             return $c->render(status => 400, openapi => {error => "Invalid XML format: " . $valid_xml->{message}});
         }
-        my $ship_notice_number_result = $handler->extract_ship_notice_number($valid_xml->{xml_doc});
-        my $ship_notice_number = $ship_notice_number_result->{ship_notice_number};
+        my $ship_notice_number = $handler->extract_ship_notice_number($valid_xml->{xml_doc});
         my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
         my $result = $db->create({ship_notice_number => $ship_notice_number, xml_doc => $valid_xml->{xml_doc}});
         return $c->render(status => 201, openapi => {message => "Data saved successfully"});
