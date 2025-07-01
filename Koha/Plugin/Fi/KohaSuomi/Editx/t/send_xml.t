@@ -33,7 +33,7 @@ subtest 'POST valid XML file' => sub {
     # Create a test patron with a password and permissions
     my $patron = $builder->build_object({
         class => 'Koha::Patrons',
-        value => { flags => 1 }
+        value => { flags => 2**11 }    #acquisition
     });
     my $password = 'thePassword123';
     $patron->set_password({ password => $password, skip_validation => 1 });
