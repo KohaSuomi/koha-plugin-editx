@@ -1,0 +1,15 @@
+<ShipNotice>
+    <Header>
+        <DocumentNumber>12345</DocumentNumber>
+        <!-- Missing required Date element -->
+    </Header>
+    <Items>
+        <Item>
+            <ProductID>ABC123</ProductID>
+            <!-- Quantity element has invalid negative value -->
+            <Quantity>-10</Quantity>
+        </Item>
+        <!-- Missing closing tag for Items -->
+    <!-- Extra closing tag for ShipNotice -->
+</ShipNotice>
+</ShipNotice>
