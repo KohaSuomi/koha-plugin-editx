@@ -44,7 +44,7 @@ sub extract_ship_notice_number {
     # This method extracts the ShipNoticeNumber from the XML document
     # If the ShipNoticeNumber is not found, we will throw an error
 
-    my ($ship_notice_number) = $xml_doc ->findnodes('//ShipNoticeNumber');
+    my ($ship_notice_number) = $xml_doc->findnodes('//ShipNoticeNumber');
     return $ship_notice_number;        
 }
 
