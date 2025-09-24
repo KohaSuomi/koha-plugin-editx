@@ -226,13 +226,14 @@ sub getBiblioDatas {
 sub getBiblioItemData {  
     my $self = shift;
     my ($copyDetail, $itemDetail, $order) = @_;
-    my (@isbns, $ean, $publishercode, $editionresponsibility, $rows, $row, @result);
+    my (@isbns, $stdind, $ean, $publishercode, $editionresponsibility, $rows, $row, @result);
     my $isbns1 = $itemDetail->getIsbns();
     push @isbns, @$isbns1;
     my $isbns2 = $copyDetail->getIsbns();
     push @isbns, @$isbns2;
     @isbns = uniq @isbns;
-
+    
+    $stdind = $copyDetail->getStandardIdentifierIndicator();
     $ean = $copyDetail->getMarcStdIdentifier();
     $publishercode = $copyDetail->getMarcPublisherIdentifier();
     $editionresponsibility = $copyDetail->getMarcPublisher();
@@ -242,7 +243,7 @@ sub getBiblioItemData {
     }
 
     if($ean && (!$rows || $rows->count <= 0)){
-        $rows = $self->getItemsByEan($ean);
+        $rows = $self->getItemsByEan($stdind,$ean);
     }
     if($publishercode && $editionresponsibility && (!$rows || $rows->count <= 0)){
         $rows = $self->getItemByColumns({ publishercode => $publishercode, editionresponsibility => $editionresponsibility });
@@ -348,12 +349,16 @@ sub getItemsByIsbns {
 
 sub getItemsByEan {   
     my $self = shift;
-    my $ean = $_[0];
+    my $stdindicator = $_[0];
+    my $stdid = $_[1]; # standard identifier type, e.g. EAN defined by indicator
     my $resultSet = $self->getSchema()->resultset(Koha::Biblioitem->_type());
     my $result = -1;
 
-    if($ean){
-        $result = $resultSet->search({'ean' => {'like' => "%$ean%"}},{ select => [qw/isbn biblionumber biblioitemnumber/] });
+    if($stdindicator && $stdid && $stdindicator != '8'){
+        $result = $resultSet->search({'ean' => {'like' => "%$stdid%"}},{ select => [qw/isbn biblionumber biblioitemnumber/] }); #multipe EAN matching
+    }
+    elsif($stdindicator && $stdid && $stdindicator == '8'){
+        $result = $resultSet->search({'ean' => $stdid},{ select => [qw/isbn biblionumber biblioitemnumber/] }); #Exact match for Puppe shortcodes #KOHA-1996
     }
     return $result;
 }
