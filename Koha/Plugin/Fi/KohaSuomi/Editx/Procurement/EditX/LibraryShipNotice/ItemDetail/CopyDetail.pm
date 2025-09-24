@@ -11,6 +11,20 @@ use XML::LibXML;
 use Encode;
 use HTML::Entities;
 
+
+use File::Basename;
+use C4::Context;
+use Data::Dumper;
+use Log::Log4perl;
+
+my $CONFPATH = dirname($ENV{'KOHA_CONF'});
+
+my $log_conf = $CONFPATH . "/log4perl.conf";
+Log::Log4perl::init($log_conf);
+my $log = Log::Log4perl->get_logger('sipohttp');
+
+$log->debug("Log4perl initialized CopyDetail");
+
 has 'xmlData' => (
     is => 'rw',
     reader => 'getXmlData',
@@ -330,6 +344,22 @@ sub getMarcStdIdentifier {
 
     if($marcRecord){
         $result = $marcRecord->subfield('024','a');
+    }
+    if(!$result){
+       $result = '';
+    }
+    return $result;
+}
+
+sub getStandardIdentifierIndicator {
+    my $self = shift;
+    my $marcRecord = $self->getMarcData();
+    my $result;
+
+    if($marcRecord){
+        $result = $marcRecord->field('024');
+        $log->warn(Dumper($result));
+        $result = $result->indicator(1);
     }
     if(!$result){
        $result = '';
