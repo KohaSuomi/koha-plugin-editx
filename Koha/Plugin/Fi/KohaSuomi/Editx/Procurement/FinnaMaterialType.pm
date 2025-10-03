@@ -19,6 +19,7 @@ my %FinnaMaterialLang = (
 
     'Article' => { 'fi_FI' => 'ARTIKKELI' },
     'Atlas' => { 'fi_FI' => 'ATLAS' },
+    'AudioBookDaisy' => { 'fi_FI' => 'CELIA' },
     'BluRay' => { 'fi_FI' => 'BLURAY' },
     'BoardGame' => { 'fi_FI' => 'LAUTAPELI' },
     'BookSection' => { 'fi_FI' => 'KIRJA' },
@@ -95,14 +96,28 @@ sub termIn655 {
     return 0;
 }
 
-# Conversion of getFormatFunc() from https://github.com/NatLibFi/RecordManager-Finna/blob/dev/src/RecordManager/Finna/Record/Marc.php#L1084
+# Conversion of getFormatFunc() from https://github.com/NatLibFi/RecordManager-Finna/blob/dev/src/RecordManager/Finna/Record/Marc.php
 sub getFinnaMaterialType_core {
     my ($record) = @_;
+
+    my $field008 = '';
+    $field008 = $record->field('008')->data() if $record->field('008');
 
     my $leader = $record->leader();
 
     my $typeOfRecord = uc(substr($leader, 6, 1));
     my $bibliographicLevel = uc(substr($leader, 7, 1));
+
+
+    if ($typeOfRecord eq 'R') {
+        my $visualType = substr($field008, 33, 1) || '';
+        return 'BoardGame' if ($visualType eq 'g' || termIn655($record, 'lautapelit'));
+    } elsif ($typeOfRecord eq 'M') {
+        my $electronicType = substr($field008, 26, 1) || '';
+        return 'VideoGame' if ($electronicType eq 'g' || termIn655($record, 'videopelit'));
+    }
+
+
     my $online = 0;
 
     foreach my $field ($record->field('007')) {
@@ -111,17 +126,6 @@ sub getFinnaMaterialType_core {
         my $format2 = uc(substr($contents, 1, 1)); # $formatCode2
         my $formats = uc(substr($contents, 0, 2)); # $formatCode + $formatCode2
 
-
-        my $field008 = '';
-        $field008 = $record->field('008')->data() if $record->field('008');
-
-        if ($typeOfRecord eq 'R') {
-            my $visualType = substr($field008, 33, 1) || '';
-            return 'BoardGame' if ($visualType eq 'g' || termIn655($record, 'lautapelit'));
-        } elsif ($typeOfRecord eq 'M') {
-            my $electronicType = substr($field008, 26, 1) || '';
-            return 'VideoGame' if ($electronicType eq 'g' || termIn655($record, 'videopelit'));
-        }
 
         return 'Atlas' if ($formats eq 'AD');
         return 'Map'   if ($format1 eq 'A');
@@ -167,6 +171,8 @@ sub getFinnaMaterialType_core {
 
         return 'SensorImage' if ($format1 eq 'R');
 
+        return 'AudioBookDaisy' if isAudioBookDaisy($record);
+
         if ($formats eq 'SD') {
             my $size = uc(substr($contents, 6, 1));
             my $material = uc(substr($contents, 10, 1));
@@ -175,9 +181,10 @@ sub getFinnaMaterialType_core {
             return  ($typeOfRecord eq 'I') ? 'NonmusicalDisc' : 'SoundDisc';
         }
         return (($typeOfRecord eq 'I') ? 'NonmusicalCassette' : 'SoundCassette') if ($formats eq 'SS');
+        return (($typeOfRecord eq 'I') ? 'NonmusicalRecordingOnline' : 'SoundRecordingOnline') if ($formats eq 'SR');
         return 'NonmusicalRecording' if ($format1 eq 'S' && $typeOfRecord eq 'I');
         return 'MusicRecording' if ($format1 eq 'S' && $typeOfRecord eq 'J');
-        return 'SoundRecording' if ($format1 eq 'S');
+        return ($online ? 'SoundRecordingOnline' : 'SoundRecording') if ($format1 eq 'S');
 
 
         if ($format1 eq 'V') {
@@ -193,8 +200,6 @@ sub getFinnaMaterialType_core {
         return 'Video'          if ($format1 eq 'V');
 
     } # 007 fields
-
-    my $field008 = $record->field('008')->data() if $record->field('008');
 
     return 'MusicalScore'   if ($typeOfRecord eq 'C' || $typeOfRecord eq 'D');
     return 'Map'            if ($typeOfRecord eq 'E' || $typeOfRecord eq 'F');
@@ -231,6 +236,42 @@ sub getFinnaMaterialType {
     my $fmt = getFinnaMaterialType_core($record);
     return $FinnaMaterialLang{$fmt}{$lang} if (defined($FinnaMaterialLang{$fmt}) && defined($FinnaMaterialLang{$fmt}{$lang}));
     return $fmt;
+}
+
+sub isAudioBookDaisy {
+    my ($record) = @_;
+
+    my $field008 = '';
+    $field008 = $record->field('008')->data() if $record->field('008');
+
+    # Rule 1: 008/22 == 'f' and 347$b == 'daisy'
+    if (substr($field008, 22, 1) eq 'f') {
+        foreach my $field ($record->field('347')) {
+            my $sub = $field->subfield('b') || '';
+            if (lc($sub) eq 'daisy') {
+                return 1;
+            }
+        }
+    }
+
+    # Rule 2: Other Daisy rules
+    my @daisyRules = (
+        ['020', 'q', 'daisy'],
+        ['028', 'b', 'celia'],
+        ['245', 'b', 'daisy-äänikirja'],
+        ['300', 'a', 'daisy'],
+    );
+    foreach my $rule (@daisyRules) {
+        my ($fieldTag, $subfieldCode, $search) = @$rule;
+        foreach my $field ($record->field($fieldTag)) {
+            my $sub = $field->subfield($subfieldCode) || '';
+            if ($sub =~ /\Q$search\E/i) {
+                return 1;
+            }
+        }
+    }
+
+    return 0;
 }
 
 1;
