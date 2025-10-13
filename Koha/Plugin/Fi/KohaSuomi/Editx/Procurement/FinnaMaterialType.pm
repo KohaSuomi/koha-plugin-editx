@@ -100,6 +100,8 @@ sub termIn655 {
 sub getFinnaMaterialType_core {
     my ($record) = @_;
 
+    return 'AudioBookDaisy' if isAudioBookDaisy($record);
+
     my $field008 = '';
     $field008 = $record->field('008')->data() if $record->field('008');
 
@@ -170,8 +172,6 @@ sub getFinnaMaterialType_core {
         return 'MusicalScore' if ($format1 eq 'Q');
 
         return 'SensorImage' if ($format1 eq 'R');
-
-        return 'AudioBookDaisy' if isAudioBookDaisy($record);
 
         if ($formats eq 'SD') {
             my $size = uc(substr($contents, 6, 1));
@@ -268,6 +268,14 @@ sub isAudioBookDaisy {
             if ($sub =~ /\Q$search\E/i) {
                 return 1;
             }
+        }
+    }
+
+    # Rule 3: Check local use 599$a for 'daisy'
+    foreach my $field ($record->field('599')) {
+        my $sub = $field->subfield('a') || '';
+        if ($sub =~ /daisy/i) {
+            return 1;
         }
     }
 
