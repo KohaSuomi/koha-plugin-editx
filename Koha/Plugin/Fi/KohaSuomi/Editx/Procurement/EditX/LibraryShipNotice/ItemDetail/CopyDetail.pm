@@ -359,7 +359,7 @@ sub getStandardIdentifierIndicator {
     if($marcRecord){
         $result = $marcRecord->field('024');
         $log->warn(Dumper($result));
-        $result = $result->indicator(1);
+        $result = $result->indicator(1) if $result;
     }
     if(!$result){
        $result = '';
