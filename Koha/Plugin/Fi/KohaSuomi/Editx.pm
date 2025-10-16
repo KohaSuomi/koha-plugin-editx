@@ -13,7 +13,7 @@ our $metadata = {
     name            => 'EDItX-plugin',
     author          => 'Lari Strand',
     date_authored   => '2022-04-05',
-    date_updated    => '2022-04-05',
+    date_updated    => '2025-10-16',
     minimum_version => '21.05',
     maximum_version => '',
     version         => $VERSION,
@@ -40,13 +40,16 @@ sub install() {
     my ( $self, $args ) = @_;
     $self->create_map_productform();
     $self->sql_insert_data();
-    $self->create_sequences_table();
+    my $dbh = C4::Context->dbh;
+    $dbh->do("INSERT IGNORE INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES ('Koha::Plugin::Fi::KohaSuomi::Editx', 'next_barcode', '1');");
     return 1;
 }
 ## This is the 'upgrade' method. It will be triggered when a newer version of a
 ## plugin is installed over an existing older version of a plugin
 sub upgrade {
     my ( $self, $args ) = @_;
+    my $dbh = C4::Context->dbh;
+    $dbh->do("INSERT IGNORE INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES ('Koha::Plugin::Fi::KohaSuomi::Editx', 'next_barcode', '1');");
     return 1;
 }
 ## This method will be run just before the plugin files are deleted
@@ -54,6 +57,8 @@ sub upgrade {
 ## after ourselves!
 sub uninstall() {
     my ( $self, $args ) = @_;
+    my $dbh = C4::Context->dbh;
+    $dbh->do("DELETE FROM plugin_data WHERE plugin_class='Koha::Plugin::Fi::KohaSuomi::Editx' AND plugin_key='next_barcode';");
     return 1;
 }
 
@@ -68,8 +73,8 @@ sub create_map_productform {
             `productform_alternative` varchar(10) DEFAULT NULL,
             PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        ");
-    };
+    ");
+};
 
 sub sql_insert_data {
     my ($self) = @_;
@@ -224,14 +229,4 @@ sub sql_insert_data {
         ('00', '28VRK', '28VRKLN');
         ");    
     }   
-
-sub create_sequences_table {
-    my ( $self ) = @_;
-    my $dbh = C4::Context->dbh;
-    my $sequences_table = 'sequences';
-    $dbh->do("CREATE TABLE IF NOT EXISTS `sequences` (
-  `invoicenumber` bigint(20) unsigned DEFAULT NULL,
-  `item_barcode_nextval` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-}
 1;

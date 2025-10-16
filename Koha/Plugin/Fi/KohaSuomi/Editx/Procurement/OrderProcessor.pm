@@ -308,14 +308,14 @@ sub advanceBarcodeValue {
     my $regex = sprintf "%s$date|" x @$prefixes, @$prefixes;
     $regex .= "HANK_$date";
 
-    my $update_query = "UPDATE sequences set item_barcode_nextval = item_barcode_nextval+1";
+    my $update_query = "UPDATE plugin_data SET plugin_value = plugin_value+1 WHERE plugin_class='Koha::Plugin::Fi::KohaSuomi::Editx' AND plugin_key='next_barcode'";
     my $query = 'SELECT MAX(CAST(SUBSTRING(barcode,-5) AS signed)) from items where barcode REGEXP "'.$regex.'"';
     my $stmnt = $dbh->prepare($query);
     $stmnt->execute();
 
     while (my ($count)= $stmnt->fetchrow_array) {
         if(!$count || $count == 9999){
-            $update_query = "UPDATE sequences set item_barcode_nextval = 1";
+            $update_query = "UPDATE plugin_data SET plugin_value=1 WHERE plugin_class='Koha::Plugin::Fi::KohaSuomi::Editx' AND plugin_key='next_barcode'";
         }
     }
 
@@ -327,7 +327,7 @@ sub getBarcodeValue {
     my $self = shift;
 
     my $dbh = C4::Context->dbh;
-    my $stmnt = $dbh->prepare("SELECT max(item_barcode_nextval) from sequences");
+    my $stmnt = $dbh->prepare("SELECT plugin_value FROM plugin_data WHERE plugin_class='Koha::Plugin::Fi::KohaSuomi::Editx' AND plugin_key='next_barcode'");
     $stmnt->execute();
 
     my $nextnum = sprintf("%0*d", "5",$stmnt->fetchrow_array());
