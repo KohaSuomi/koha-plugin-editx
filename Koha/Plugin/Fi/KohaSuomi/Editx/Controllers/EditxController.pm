@@ -61,12 +61,9 @@ sub update {
     my $c = shift->openapi->valid_input or return;
     my $logger = Koha::Logger->get({ interface => 'api' });
     my $id = $c->validation->param('id');
-    my $status = $c->validation->param('status');
-
-    unless ($status =~ /^(pending|processing|completed|failed)$/) {
-        return $c->render(status => 400, openapi => {error => "Invalid status value"});
-
-    }
+    my $body = $c->req->json;
+    my $status = $body->{status};
+    
     try {
         my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
         my $result = $db->update_status($id, $status);
