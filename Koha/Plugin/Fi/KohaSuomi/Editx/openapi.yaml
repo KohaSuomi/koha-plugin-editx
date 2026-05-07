@@ -84,16 +84,22 @@
         required: true
         type: integer
         description: ID of the Editx message to update
-      - name: status
-        in: query
+      - name: body
+        in: body
         required: true
-        description: Updated Editx XML string
-        type: string
-        enum:
-          - pending
-          - processing
-          - completed
-          - failed
+        description: Status update for the Editx message
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - pending
+                - processing
+                - completed
+                - failed
+          required:
+            - status
     produces:
       - application/xml
     responses:
