@@ -8,7 +8,7 @@ use C4::Context;
 use JSON::Validator::Schema::OpenAPIv2;
 use utf8;
 ## Here we set our plugin version
-our $VERSION = "1.0.2";
+our $VERSION = "1.0.3";
 ## Here is our metadata, some keys are required, some are optional
 our $metadata = {
     name            => 'EDItX-plugin',
@@ -38,10 +38,9 @@ sub new {
 
 sub admin {
     my ( $self, $args ) = @_;
-    my $cgi = $self->{'cgi'};
-    print $cgi->header(); 
+    my $cgi = $self->{'cgi'}; 
     my $template = $self->get_template( { file => 'admin_editx.tt' } );
-
+    print $cgi->header(-charset    => 'utf-8');
     print $template->output();
 }
 
@@ -82,12 +81,13 @@ sub createTables {
     `name` varchar(255) NOT NULL,
     `content` longtext NOT NULL,
     `status` ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+    `statusmessage` varchar(255) DEFAULT NULL,
+    `transfer_time` datetime DEFAULT NULL,
     `timestamp` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
 }
-
 
 sub api_routes {
     my ( $self, $args ) = @_;

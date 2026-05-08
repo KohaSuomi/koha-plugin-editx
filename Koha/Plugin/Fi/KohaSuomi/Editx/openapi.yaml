@@ -138,3 +138,44 @@
     x-koha-authorization:
       permissions:
         acquisition: edi_manage
+  delete:
+    x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#delete"
+    operationId: deleteEditx
+    tags:
+      - editx
+    parameters:
+      - name: id
+        in: path
+        required: true
+        type: integer
+        description: ID of the Editx message to delete
+    produces:
+      - application/json
+    responses:
+      "200":
+        description: Successfully deleted the Editx message
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: Success message
+      "404":
+        description: Not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Editx message not found
+      "500":
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+    x-koha-authorization:
+      permissions:
+        acquisition: edi_manage

@@ -621,7 +621,7 @@ sub createItem {
                 $result = $item->itemnumber;
             }
             else{
-                die('Itemidnumber not set after db save.')
+                die('Itemnumber not set after db save.');
             }        
         }
         else{
@@ -670,15 +670,16 @@ sub getBookseller {
     $bookseller = $stmnt->fetchrow_array();
 
     if(!$bookseller){
+        my $errorMsg;
         if ($san) {
-            $self->getLogger()->log("No vendor for SAN $san (qualifier $qualifier) in vendor_edi_accounts.");
-            $self->getLogger()->log("No vendor for SAN $san (qualifier $qualifier) in vendor_edi_accounts.");
+            $errorMsg = "No vendor for SAN $san (qualifier $qualifier) in vendor_edi_accounts.";
+            $self->getLogger()->log($errorMsg);
         }
         else {
-            $self->getLogger()->log("No vendor in shipment notice.");
-            $self->getLogger()->log("No vendor in shipment notice.");
+            $errorMsg = "No vendor in shipment notice.";
+            $self->getLogger()->log($errorMsg);
         }
-        die();
+        die($errorMsg);
     }
     return $bookseller;
 }
@@ -772,7 +773,6 @@ sub getAuthoriser {
     my $self = shift;
     my $authoriser;
     my $settings = $self->getConfig()->getSettings();
-     warn Dumper($settings);
     if(defined $settings->{settings}->{authoriser} ){
         $authoriser = $settings->{settings}->{authoriser};
     }

@@ -44,11 +44,13 @@ foreach my $order_row (@$pending_orders) {
     try {
         
         $logger->log("Started processing order ID " . $order_row->{id});
+        $db->update_status($order_row->{id}, 'processing', 'Order is being processed');
         # Create an order object from the database content
         my $order_object = $parser->parseDb($order_row->{content});
 
         if(!$order_object) {
             $logger->logError("Failed to create order object from content for order ID " . $order_row->{id});
+            $db->mark_order_as_failed($order_row->{id}, 'Failed to parse XML content');
             return;
         }
         $edi_message->add($order_row->{name});
@@ -56,17 +58,18 @@ foreach my $order_row (@$pending_orders) {
         # Process the order object
         $orderProcessor->process($order_object);
         # Päivitä tilauksen tila tietokannassa
-        $db->mark_order_as_completed($order_row->{id});
+        $db->mark_order_as_completed($order_row->{id}, 'Order processed successfully');
 
         $edi_message->update($order_row->{name}, 'OK');
 
         $logger->log("Ended processing order ID " . $order_row->{id});
     } catch {
         my $failMsg = "Order processing failed for ID " . $order_row->{id};
+        my $error = $_;
         $logger->log($failMsg);
         $logger->logError($failMsg);
-        $logger->logError("Error was: $_");
-        $db->mark_order_as_failed($order_row->{id});
+        $logger->logError("Error was: $error");
+        $db->mark_order_as_failed($order_row->{id}, "$error\n");
         $edi_message->update($order_row->{name}, 'FAILED');
     }
 }

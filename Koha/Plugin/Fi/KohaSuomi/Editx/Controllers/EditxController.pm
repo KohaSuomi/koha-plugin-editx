@@ -80,4 +80,28 @@ sub update {
         return $c->render(status => 500, openapi => {error => "Failed to update status"});
     }
 }
+
+sub delete {
+    ## In this method we will handle the deletion of Editx contents
+    ## We will delete a specific content based on the ID provided
+    my $c = shift->openapi->valid_input or return;
+    my $logger = Koha::Logger->get({ interface => 'api' });
+    my $id = $c->validation->param('id');
+    
+    try {
+        my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
+        my $result = $db->delete($id);
+
+        if ($result) {
+            return $c->render(status => 200, openapi => {message => "Content deleted successfully"});
+        } else {
+            return $c->render(status => 404, openapi => {error => "Content not found"});
+        }
+    }
+    catch {
+        my $error = $_;
+        $logger->error("Failed to delete content ID $id: $error");
+        return $c->render(status => 500, openapi => {error => "Failed to delete content"});
+    }
+}
 1;

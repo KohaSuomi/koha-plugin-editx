@@ -53,34 +53,4 @@ sub id {
     return $self->{id} // 'undefined';
 }
 
-sub process {
-    ## This method processes the Editx content
-    ## It retrieves the XML data, parses it, and updates the status in the database
-    my ($self) = @_;
-    my $xml_data = $self->{data}->{xml_doc};
-
-    unless (defined $xml_data && $xml_data ne '') {
-        die "XML data for order ID " . $self->id;
-    }
-    print "Debug: XML data for order ID " . $self->id . ":\$xml_data\n";
-    
-    my $parsed_result = $self->parse_xml($xml_data);
-    if ($parsed_result->{status} != 200) {
-        die "Error parsing XML: " . $parsed_result->{message};
-    }
-
-    my $xml_doc = $parsed_result->{xml_doc};
-
-    my $ship_notice_number = $self->extract_ship_notice_number($xml_doc);
-    unless ($ship_notice_number) {
-        die "ShipNoticeNumber not found in XML data";
-    }
-
-    print "Processing order with ShipNoticeNumber: $ship_notice_number\n";
-
-    my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
-    $db->update_status($self->{data}->{id}, 'completed');
-
-    return 1;
-}
 1;

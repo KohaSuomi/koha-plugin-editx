@@ -113,14 +113,14 @@ sub get_all_contents {
 
 sub update_status {
     ## This method updates the status of a specific Editx content
-    ## It takes the content ID and the new status as parameters
-    my ($self, $id, $status) = @_;
+    ## It takes the content ID, the new status, and an optional message as parameters
+    my ($self, $id, $status, $message) = @_;
     my $table = $self->editx;
     my $dbh = $self->dbh;
 
-    my $sql = "UPDATE $table SET status = ? WHERE id = ?";
+    my $sql = "UPDATE $table SET status = ?, statusmessage = ? WHERE id = ?";
     my $sth = $dbh->prepare($sql);
-    $sth->execute($status, $id);
+    $sth->execute($status, $message, $id);
 
     return $sth->rows > 0;
 }
@@ -141,14 +141,14 @@ sub get_pending_contents {
 sub mark_order_as_completed {
     ## This method marks a specific Editx content as completed
     ## It takes the content ID as a parameter
-    my ($self, $id) = @_;
-    return $self->update_status($id, 'completed');
+    my ($self, $id, $message) = @_;
+    return $self->update_status($id, 'completed', $message);
 }
 
 sub mark_order_as_failed {
     ## This method marks a specific Editx content as failed
     ## It takes the content ID as a parameter
-    my ($self, $id) = @_;
-    return $self->update_status($id, 'failed');
+    my ($self, $id, $message) = @_;
+    return $self->update_status($id, 'failed', $message);
 }
 1;

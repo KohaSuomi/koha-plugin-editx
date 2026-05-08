@@ -1,53 +1,248 @@
+/* Custom styles for Editx plugin with Bootstrap 5 - Koha Green Theme */
+
+:root {
+    --koha-green: #408540;
+    --koha-green-dark: #2d5f2d;
+    --koha-green-light: #52a552;
+    --koha-green-lighter: #e8f5e8;
+    --koha-green-hover: #4d9a4d;
+}
+
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f9f9f9;
+    background-color: #f8f9fa;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Koha Green Theme Classes */
+.bg-koha-green {
+    background-color: var(--koha-green) !important;
+}
+
+.text-koha-green {
+    color: var(--koha-green) !important;
+}
+
+.btn-koha-green {
+    background-color: var(--koha-green);
+    border-color: var(--koha-green);
+    color: white;
+}
+
+.btn-koha-green:hover {
+    background-color: var(--koha-green-hover);
+    border-color: var(--koha-green-hover);
+    color: white;
+}
+
+/* Breadcrumb styling */
+.breadcrumb {
+    background-color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 0.375rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin-bottom: 0;
+}
+
+.breadcrumb-item a {
+    color: var(--koha-green);
+    transition: color 0.2s ease;
+}
+
+.breadcrumb-item a:hover {
+    color: var(--koha-green-dark);
+}
+
+.breadcrumb-item.active {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: #adb5bd;
+}
+
+/* Enhanced card shadow on hover */
+.card {
+    transition: box-shadow 0.3s ease-in-out;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Table enhancements */
+#contents-table {
+    font-size: 0.95rem;
+}
+
+#contents-table thead th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+#contents-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+/* Status badge animations */
+.badge {
+    font-size: 0.85rem;
+    padding: 0.4em 0.8em;
+    font-weight: 500;
+    transition: transform 0.2s ease;
+}
+
+.badge:hover {
+    transform: scale(1.05);
+}
+
+/* Override Bootstrap success badge with Koha green */
+.badge.bg-success {
+    background-color: var(--koha-green) !important;
+}
+
+/* Button enhancements */
+.btn {
+    transition: all 0.2s ease-in-out;
+    font-weight: 500;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+/* Override Bootstrap success button with Koha green */
+.btn-success {
+    background-color: var(--koha-green);
+    border-color: var(--koha-green);
+}
+
+.btn-success:hover {
+    background-color: var(--koha-green-hover);
+    border-color: var(--koha-green-hover);
+}
+
+.btn-success:focus {
+    background-color: var(--koha-green-dark);
+    border-color: var(--koha-green-dark);
+    box-shadow: 0 0 0 0.25rem rgba(64, 133, 64, 0.25);
+}
+
+/* Alert animations */
+.alert {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Override Bootstrap success alert with Koha green */
+.alert-success {
+    background-color: var(--koha-green-lighter);
+    border-color: var(--koha-green-light);
+    color: var(--koha-green-dark);
+}
+
+.alert-success .bi {
+    color: var(--koha-green);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Header styling */
+.display-5 {
+    margin-bottom: 0.5rem;
+}
+
+/* Empty state styling */
+#contents-table tbody tr td .bi-inbox {
+    opacity: 0.3;
+}
+
+/* Pagination styling */
+.pagination {
     margin: 0;
-    padding: 0;
 }
 
-
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 20px 0;
-    background-color: #fff;
+.page-link {
+    color: var(--koha-green);
+    transition: all 0.2s ease;
 }
 
-
-
-th, td {
-    padding: 10px;
-    text-align: left;
-    border: 1px solid #ddd;
+.page-link:hover {
+    background-color: var(--koha-green-lighter);
+    border-color: var(--koha-green);
+    color: var(--koha-green-dark);
+    transform: translateY(-1px);
 }
 
-
-th {
-    background-color: #f4f4f4;
-    font-weight: bold;
+.page-item.active .page-link {
+    background-color: var(--koha-green);
+    border-color: var(--koha-green);
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(64, 133, 64, 0.3);
 }
 
-
-
-button {
-    padding: 8px 12px;
-    background-color: #007bff;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-
+.page-item.disabled .page-link {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
-button:hover {
-    background-color: #0056b3;
+.card-footer {
+    border-top: 2px solid #e9ecef;
 }
 
+/* Items per page selector */
+.card-header .form-select {
+    background-color: white;
+    border-color: rgba(255, 255, 255, 0.5);
+    transition: all 0.2s ease;
+}
 
+.card-header .form-select:focus {
+    border-color: white;
+    box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.25);
+}
 
-.error {
-    color: red;
-    font-weight: bold;
-    margin: 10px 0;
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .display-5 {
+        font-size: 2rem;
+    }
+    
+    #contents-table {
+        font-size: 0.85rem;
+    }
+    
+    .btn-sm {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .card-header {
+        flex-direction: column !important;
+        gap: 1rem;
+    }
+    
+    .card-footer .row > div {
+        text-align: center !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    .pagination {
+        justify-content: center !important;
+    }
 }
