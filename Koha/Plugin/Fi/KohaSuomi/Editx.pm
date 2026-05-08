@@ -76,6 +76,23 @@ sub uninstall() {
     return 1;
 }
 
+sub api_routes {
+    my ( $self, $args ) = @_;
+
+    my $spec_dir = $self->mbf_dir();
+    my $spec_file = $spec_dir . '/openapi.yaml';
+
+    my $schema = JSON::Validator::Schema::OpenAPIv2->new;
+    $schema->resolve( $spec_file );
+    return $schema->bundle->data;
+}
+
+sub api_namespace {
+    my ( $self ) = @_;
+    
+    return 'kohasuomi';
+}
+
 
 sub create_editx_contents_table {
     my ( $self ) = @_;
