@@ -42,6 +42,8 @@ perl populate_test_data.pl
 
 This creates:
 - **EUR currency** (if not already present)
+- **CPL branch** (Central Library, if not already present)
+- **AIK location** (General Collection, if not already present)
 - **3 vendors** with EDI accounts (TEST Vendor BTJ Finland, Booky, Academic Press)
 - **2 budget periods** (current and next year)
 - **5 funds** (TESTFUND2025, TESTLOC2025, OUPKAIK2025, etc.)
@@ -53,22 +55,28 @@ This creates:
 
 ```bash
 # Check EUR currency
-koha-mysql <instance> -e "SELECT currency, symbol, isocode FROM currency WHERE currency = 'EUR';"
+mysql -e "SELECT currency, symbol, isocode FROM currency WHERE currency = 'EUR';"
+
+# Check CPL branch
+mysql -e "SELECT branchcode, branchname FROM branches WHERE branchcode = 'CPL';"
+
+# Check AIK location
+mysql -e "SELECT category, authorised_value, lib FROM authorised_values WHERE category = 'LOC' AND authorised_value = 'AIK';"
 
 # Check vendors
-koha-mysql <instance> -e "SELECT name FROM aqbooksellers WHERE name LIKE 'TEST%';"
+mysql -e "SELECT name FROM aqbooksellers WHERE name LIKE 'TEST%';"
 
 # Check vendor EDI accounts
-koha-mysql <instance> -e "SELECT v.name, e.san, e.id_code_qualifier FROM aqbooksellers v JOIN vendor_edi_accounts e ON v.id=e.vendor_id WHERE v.name LIKE 'TEST%';"
+mysql -e "SELECT v.name, e.san, e.id_code_qualifier FROM aqbooksellers v JOIN vendor_edi_accounts e ON v.id=e.vendor_id WHERE v.name LIKE 'TEST%';"
 
 # Check funds
-koha-mysql <instance> -e "SELECT budget_code, budget_name FROM aqbudgets WHERE budget_code LIKE 'TEST%';"
+mysql -e "SELECT budget_code, budget_name FROM aqbudgets WHERE budget_code LIKE 'TEST%';"
 
 # Check EDItX messages (by ShipNoticeNumber)
-koha-mysql <instance> -e "SELECT name, status FROM koha_plugin_fi_kohasuomi_editx_contents WHERE name LIKE 'SN%';"
+mysql -e "SELECT name, status FROM koha_plugin_fi_kohasuomi_editx_contents WHERE name LIKE 'SN%';"
 
 # After processing EDItX messages, check created baskets
-koha-mysql <instance> -e "SELECT b.basketno, b.basketname, s.name as vendor FROM aqbasket b JOIN aqbooksellers s ON b.booksellerid=s.id WHERE b.basketname LIKE 'SN%' ORDER BY b.basketname;"
+mysql -e "SELECT b.basketno, b.basketname, s.name as vendor FROM aqbasket b JOIN aqbooksellers s ON b.booksellerid=s.id WHERE b.basketname LIKE 'SN%' ORDER BY b.basketname;"
 ```
 
 ### 3. Test Plugin
@@ -99,7 +107,7 @@ Specify a valid borrowernumber when running the script:
 
 ```bash
 # Find a valid borrowernumber
-koha-mysql <instance> -e "SELECT borrowernumber, surname FROM borrowers LIMIT 5;"
+"SELECT borrowernumber, surname FROM borrowers LIMIT 5;"
 
 # Use it with the --borrowernumber flag
 perl populate_test_data.pl --borrowernumber=42

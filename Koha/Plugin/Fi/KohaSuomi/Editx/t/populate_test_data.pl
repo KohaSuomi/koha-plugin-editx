@@ -139,6 +139,68 @@ sub create_test_currency {
     }
 }
 
+sub ensure_branch_exists {
+    my ($branchcode) = @_;
+    $branchcode //= 'CPL';
+
+    say "\nEnsuring $branchcode branch exists...";
+
+    my $existing = $dbh->selectrow_array(
+        "SELECT COUNT(*) FROM branches WHERE branchcode = ?",
+        undef, $branchcode
+    );
+
+    if ($existing) {
+        say "  $branchcode branch already exists";
+        return;
+    }
+
+    my $branchname = "Test Branch $branchcode";
+    my $sql = qq{
+        INSERT INTO branches (branchcode, branchname)
+        VALUES (?, ?)
+    };
+
+    eval {
+        $dbh->do($sql, undef, $branchcode, $branchname);
+        say "  Created $branchcode branch";
+    };
+    if ($@) {
+        say "  $branchcode branch creation failed (may already exist): $@";
+    }
+}
+
+sub ensure_loc_exists {
+    my ($loc) = @_;
+    $loc //= 'AIK';
+
+    say "\nEnsuring $loc location exists...";
+
+    my $existing = $dbh->selectrow_array(
+        "SELECT COUNT(*) FROM authorised_values WHERE category = 'LOC' AND authorised_value = ?",
+        undef, $loc
+    );
+
+    if ($existing) {
+        say "  $loc location already exists";
+        return;
+    }
+
+    my $lib = "Test Location $loc";
+    my $sql = qq{
+        INSERT INTO authorised_values (category, authorised_value, lib)
+        VALUES ('LOC', ?, ?)
+    };
+
+    eval {
+        $dbh->do($sql, undef, $loc, $lib);
+        say "  Created $loc location";
+    };
+    if ($@) {
+        say "  $loc location creation failed (may already exist): $@";
+    }
+}
+
 sub create_test_vendors {
     say "\nCreating test vendors...";
     
@@ -321,8 +383,8 @@ sub create_test_budgets {
             budget_notes => 'Test fund for general book acquisitions',
         },
         {
-            budget_code => 'TESTLOC2025',
-            budget_name => 'TEST Location-specific Fund',
+            budget_code => 'CPLAIK2025',
+            budget_name => 'TEST CPL AIK Fund',
             budget_amount => 20000.00,
             budget_period_id => $budget_period_id,
             budget_owner_id => $owner_id,
@@ -330,7 +392,7 @@ sub create_test_budgets {
         },
         {
             budget_code => 'OUPKAIK2025',
-            budget_name => 'TEST OUP KAIK Fund',
+            budget_name => 'TEST OUPK AIK Fund',
             budget_amount => 15000.00,
             budget_period_id => $budget_period_id,
             budget_owner_id => $owner_id,
@@ -399,8 +461,16 @@ sub generate_editx_xml {
     my $year = $params->{year} // '2024';
     my $price = $params->{price} // '12.00';
     my $quantity = $params->{quantity} // '1';
-    my $location = $params->{location} // 'TESTLOC2025';
-    my $fund = $params->{fund} // 'TESTLOC2025';
+    my $branch = $params->{branch} // 'CPL';
+    my $loc = $params->{loc} // 'AIK';
+    my $fund_year = $params->{fund_year} // '2025';
+
+    # Ensure EDItX location parts exist in Koha before building location string.
+    ensure_branch_exists($branch);
+    ensure_loc_exists($loc);
+
+    my $location = $branch . $loc . $fund_year;  # Format: BRANCHCODE + LOC + YEAR
+    my $fund = $params->{fund} // 'CPLAIK2025';
     my $line_number = $params->{line_number} // '1';
     my $notes = $params->{notes} // 'EDItX test order';
     
@@ -505,7 +575,7 @@ sub generate_editx_xml {
                 <MonetaryAmount>$price</MonetaryAmount>
                 <CurrencyCode>EUR</CurrencyCode>
             </CopyValue>
-            <LocationCode>FI-KOHA;210;1</LocationCode>
+            <LocationCode>$branch;$loc;1</LocationCode>
             <ReaderInterestCode/>
             <FundDetail>
                 <FundNumber>$fund</FundNumber>
@@ -832,6 +902,12 @@ sub populate_test_data {
     my $eur_exists = $dbh->selectrow_array("SELECT COUNT(*) FROM currency WHERE currency = 'EUR'");
     say "EUR Currency   : " . ($eur_exists ? "exists" : "missing");
     
+    my $cpl_exists = $dbh->selectrow_array("SELECT COUNT(*) FROM branches WHERE branchcode = 'CPL'");
+    say "CPL Branch     : " . ($cpl_exists ? "exists" : "missing");
+    
+    my $aik_exists = $dbh->selectrow_array("SELECT COUNT(*) FROM authorised_values WHERE category = 'LOC' AND authorised_value = 'AIK'");
+    say "AIK Location   : " . ($aik_exists ? "exists" : "missing");
+    
     my $vendor_count = $dbh->selectrow_array("SELECT COUNT(*) FROM aqbooksellers WHERE name LIKE 'TEST%'");
     say "Vendors        : $vendor_count";
     
@@ -854,6 +930,8 @@ if ($clear) {
 
 # Create Koha acquisitions infrastructure
 create_test_currency();
+ensure_branch_exists('CPL');
+ensure_loc_exists('GEN');
 create_test_vendors();
 create_test_budget_periods();
 create_test_budgets($borrowernumber);
@@ -874,6 +952,16 @@ This script creates the following test data:
 
 Ensures EUR currency exists in the currency table for order processing.
 If EUR already exists, it will not be modified.
+
+=head2 BRANCH (CPL)
+
+Ensures CPL (Central Library) branch exists in the branches table.
+If CPL already exists, it will not be modified.
+
+=head2 LOCATION (GEN)
+
+Ensures GEN location exists in authorised_values as category LOC.
+If GEN already exists, it will not be modified.
 
 =head2 VENDORS (3 records in aqbooksellers + EDI accounts in vendor_edi_accounts)
 

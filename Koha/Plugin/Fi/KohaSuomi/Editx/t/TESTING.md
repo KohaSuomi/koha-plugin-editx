@@ -55,7 +55,15 @@ perl populate_test_data.pl --help
 
 The script ensures EUR currency exists for order processing. If EUR already exists in your Koha instance, it will not be modified.
 
-### 2. VENDORS (3 records in `aqbooksellers` + EDI accounts in `vendor_edi_accounts`)
+### 2. BRANCH (CPL in `branches` table)
+
+The script ensures CPL (Central Library) branch exists. If CPL already exists, it will not be modified.
+
+### 3. LOCATION (AIK in `authorised_values` table)
+
+The script ensures AIK (General Collection) location exists in LOC category. If AIK already exists, it will not be modified.
+
+### 4. VENDORS (3 records in `aqbooksellers` + EDI accounts in `vendor_edi_accounts`)
 
 - **TEST Vendor BTJ Finland** (FI-BTJ-TEST, SAN: 12345)
 - **TEST Vendor Booky** (FI-BOOKY-TEST, SAN: 23456)
@@ -65,12 +73,12 @@ All vendors include contact information, URLs, are set as active, and have corre
 
 **NOTE**: Baskets are created automatically by the EDItX processor when processing orders. The basket name will match the ShipNoticeNumber from the EDItX message.
 
-### 3. BUDGET PERIODS (2 records in `aqbudgetperiods`)
+### 5. BUDGET PERIODS (2 records in `aqbudgetperiods`)
 
 - **TEST Budget Period [Current Year]** - €100,000 total
 - **TEST Budget Period [Next Year]** - €120,000 total
 
-### 4. FUNDS/BUDGETS (5 records in `aqbudgets`)
+### 6. FUNDS/BUDGETS (5 records in `aqbudgets`)
 
 | Fund Code | Fund Name | Amount |
 |-----------|-----------|--------|
@@ -80,7 +88,7 @@ All vendors include contact information, URLs, are set as active, and have corre
 | TEST_CHILDREN | TEST Children's Books Fund | €10,000 |
 | TEST_ACADEMIC | TEST Academic Books Fund | €30,000 |
 
-### 5. EDITX MESSAGES (16 XML records)
+### 7. EDITX MESSAGES (16 XML records)
 
 Each record is stored with its ShipNoticeNumber (SN001-SN016) in the database name column.
 
@@ -128,7 +136,7 @@ The script uses borrowernumber 51 as the **default** budget owner. You should sp
 #### Find Valid Borrower IDs
 
 ```bash
-koha-mysql <instance> -e "SELECT borrowernumber, surname, firstname FROM borrowers WHERE flags > 0 LIMIT 10;"
+mysql -e "SELECT borrowernumber, surname, firstname FROM borrowers WHERE flags > 0 LIMIT 10;"
 ```
 
 Or in SQL:
@@ -167,7 +175,7 @@ The script populates these tables:
 cd Koha/Plugin/Fi/KohaSuomi/Editx/t
 
 # Find a valid borrowernumber
-koha-mysql <instance> -e "SELECT borrowernumber, surname FROM borrowers LIMIT 5;"
+mysql -e "SELECT borrowernumber, surname FROM borrowers LIMIT 5;"
 ```
 
 ### 2. Populate Test Data
@@ -322,7 +330,7 @@ insert_test_record(
 
 ```bash
 # Find valid borrowernumber
-koha-mysql <instance> -e "SELECT borrowernumber, surname FROM borrowers LIMIT 5;"
+mysql -e "SELECT borrowernumber, surname FROM borrowers LIMIT 5;"
 
 # Run script with valid borrowernumber
 perl populate_test_data.pl --borrowernumber=42
@@ -351,7 +359,7 @@ koha-shell <instance> -c "cd /path/to/t && perl populate_test_data.pl --borrower
 **Solution**: Check that budget period was created:
 
 ```bash
-koha-mysql <instance> -e "SELECT * FROM aqbudgetperiods WHERE budget_period_description LIKE 'TEST%';"
+mysql -e "SELECT * FROM aqbudgetperiods WHERE budget_period_description LIKE 'TEST%';"
 ```
 
 ### Duplicate entry errors when re-running
