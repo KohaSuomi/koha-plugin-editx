@@ -102,7 +102,6 @@ sub configure {
             push @messages, $self->_configure_message( error => 'Configuration was not saved because the security token was invalid. Reload the page and try again.' );
             $self->_output_configure_page(
                 mapping_csv            => $mapping_csv,
-                sftp_sources_yaml      => $sftp_sources_yaml,
                 procurement_settings   => $procurement_settings,
                 messages               => \@messages,
                 saved                  => 0,
@@ -238,7 +237,6 @@ sub _output_configure_page {
         itemtypes_text         => join( ', ', @{ $self->_itemtypes() } ),
         locations_text         => join( ', ', @{ $self->_authorised_values('LOC') } ),
         branches_text          => join( ', ', @{ $self->_branches() } ),
-        configure_href         => $self->plugin_method_url('configure'),
         plugin_display_version => $self->plugin_display_version(),
     );
 

@@ -9,8 +9,6 @@
     [% INCLUDE 'prefs-admin-search.inc' %]
 [% END %]
 
-[% INCLUDE 'editx_breadcrumbs.inc' active_text='Configure' active_method='configure' %]
-
 <div class="main container-fluid">
     <div class="row">
         <div class="col-12 col-xl-10">
@@ -49,106 +47,6 @@
                     <input type="hidden" name="method" value="[% METHOD | html %]" />
                     <input type="hidden" name="save" value="1" />
                     [% INCLUDE 'csrf-token.inc' %]
-
-                    <fieldset class="rows">
-                        <legend>Automatic synchronization</legend>
-                        <ol>
-                            <li>
-                                <label for="nightly_sync_enabled">Nightly EDItX synchronization</label>
-                                <input id="nightly_sync_enabled"
-                                       name="nightly_sync_enabled"
-                                       type="checkbox"
-                                       value="1"
-                                       [% IF nightly_sync_enabled %]checked="checked"[% END %] />
-                                <div class="hint">Runs SFTP download first and then imports downloaded EDItX files from Koha's nightly plugin cron hook.</div>
-                            </li>
-                            <li>
-                                <label for="sftp_sources_yaml">SFTP sources YAML</label>
-                                <textarea id="sftp_sources_yaml"
-                                          name="sftp_sources_yaml"
-                                          class="editx-monospace"
-                                          cols="100"
-                                          rows="18"
-                                          wrap="off">[% sftp_sources_yaml | html %]</textarea>
-                                <div class="hint">One source is enough for 3AMK now; add more list entries when another remote folder or server is needed. Leave local_dir empty to use import_tmp_path below.</div>
-                                <details class="editx-example">
-                                    <summary>SFTP YAML examples</summary>
-                                    <div class="editx-example-grid">
-                                        <div>
-                                            <h2>Single source</h2>
-                                            <pre class="editx-code-example"><code>sources:
-  - id: haaga_helia
-    host: sftp.example.org
-    port: 22
-    user: editx-user
-    identity_file: /var/lib/koha/&lt;instance&gt;/.ssh/editx_sftp
-    remote_dir: /out/haaga-helia
-    local_dir:
-    pattern: "*.xml"
-    after_download: keep
-    remote_archive_dir:
-    known_hosts_file:
-    strict_host_key_checking: "yes"
-    ssh_config:</code></pre>
-                                        </div>
-                                        <div>
-                                            <h2>Multiple sources</h2>
-                                            <pre class="editx-code-example"><code>sources:
-  - id: haaga_helia
-    host: sftp.example.org
-    user: editx-user
-    identity_file: /var/lib/koha/&lt;instance&gt;/.ssh/editx_sftp
-    remote_dir: /out/haaga-helia
-    pattern: "*.xml"
-    after_download: keep
-  - id: another_library
-    host: sftp.example.org
-    user: editx-user
-    identity_file: /var/lib/koha/&lt;instance&gt;/.ssh/editx_sftp
-    remote_dir: /out/another-library
-    local_dir:
-    pattern: "LibraryShipNotice_*.xml"</code></pre>
-                                        </div>
-                                    </div>
-                                </details>
-                            </li>
-                        </ol>
-                    </fieldset>
-
-                    <fieldset class="rows">
-                        <legend>Import folders</legend>
-                        <div class="editx-folder-flow">
-                            <span>tmp</span>
-                            <span>load</span>
-                            <span>archive</span>
-                            <span>fail</span>
-                        </div>
-                        <ol>
-                            <li>
-                                <label for="import_tmp_path">Temporary download folder</label>
-                                <input id="import_tmp_path" name="import_tmp_path" type="text" size="80" value="[% procurement_settings.import_tmp_path | html %]" />
-                                <div class="hint">SFTP puts new XML files here unless a source has its own local_dir.</div>
-                            </li>
-                            <li>
-                                <label for="import_load_path">Import load folder</label>
-                                <input id="import_load_path" name="import_load_path" type="text" size="80" value="[% procurement_settings.import_load_path | html %]" />
-                                <div class="hint">Importer reads files from here after moving them out of the temporary folder.</div>
-                            </li>
-                            <li>
-                                <label for="import_archive_path">Successful archive folder</label>
-                                <input id="import_archive_path" name="import_archive_path" type="text" size="80" value="[% procurement_settings.import_archive_path | html %]" />
-                            </li>
-                            <li>
-                                <label for="import_failed_path">Failed import folder</label>
-                                <input id="import_failed_path" name="import_failed_path" type="text" size="80" value="[% procurement_settings.import_failed_path | html %]" />
-                            </li>
-                            <li>
-                                <label for="import_failed_archived_path">Archived failed folder</label>
-                                <input id="import_failed_archived_path" name="import_failed_archived_path" type="text" size="80" value="[% procurement_settings.import_failed_archived_path | html %]" />
-                                <div class="hint">Used by failure notification and requeue helper scripts.</div>
-                            </li>
-                        </ol>
-                    </fieldset>
 
                     <fieldset class="rows">
                         <legend>Processing rules</legend>
