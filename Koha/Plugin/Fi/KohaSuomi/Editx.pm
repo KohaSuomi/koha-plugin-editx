@@ -87,8 +87,6 @@ sub configure {
     my @messages;
     my $saved;
 
-    $self->_install_or_upgrade_tables();
-
     if ( $cgi->request_method eq 'POST' && $cgi->param('save') ) {
         my $mapping_csv = $cgi->param('mapping_csv') // '';
         my ( $rows, $parse_messages, $has_blocking_errors ) = $self->_parse_productform_mapping_csv($mapping_csv);

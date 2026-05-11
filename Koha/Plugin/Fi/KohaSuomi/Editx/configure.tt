@@ -43,15 +43,6 @@
             <input type="submit" class="btn btn-primary" value="Save configuration" />
         </fieldset>
     </form>
-
-    <hr />
-
-    <h2>Upgrade status</h2>
-    [% IF last_upgraded %]
-        <p>Plugin was last upgraded on this system on [% last_upgraded | $KohaDates with_hours => 1 %].</p>
-    [% ELSE %]
-        <p>Plugin has never been upgraded.</p>
-    [% END %]
 </div>
 
 [% INCLUDE 'intranet-bottom.inc' %]
