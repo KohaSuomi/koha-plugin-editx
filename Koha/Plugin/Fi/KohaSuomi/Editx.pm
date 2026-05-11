@@ -8,7 +8,7 @@ use C4::Context;
 use JSON::Validator::Schema::OpenAPIv2;
 use utf8;
 ## Here we set our plugin version
-our $VERSION = "1.0.3";
+our $VERSION = "1.0.4";
 ## Here is our metadata, some keys are required, some are optional
 our $metadata = {
     name            => 'EDItX-plugin',
@@ -53,6 +53,7 @@ sub install() {
     my ( $self, $args ) = @_;
     $self->create_editx_contents_table();
     $self->create_map_productform();
+    $self->create_aqbudgets_spend_log();
     $self->sql_insert_data();
     my $dbh = C4::Context->dbh;
     $dbh->do("INSERT IGNORE INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES ('Koha::Plugin::Fi::KohaSuomi::Editx', 'next_barcode', '1');");
@@ -63,6 +64,9 @@ sub install() {
 sub upgrade {
     my ( $self, $args ) = @_;
     my $dbh = C4::Context->dbh;
+    $self->create_editx_contents_table();
+    $self->create_map_productform();
+    $self->create_aqbudgets_spend_log();
     $dbh->do("INSERT IGNORE INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES ('Koha::Plugin::Fi::KohaSuomi::Editx', 'next_barcode', '1');");
     return 1;
 }
@@ -123,6 +127,28 @@ sub create_map_productform {
             `productform` varchar(10) DEFAULT NULL,
             `productform_alternative` varchar(10) DEFAULT NULL,
             PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+};
+
+sub create_aqbudgets_spend_log {
+    my ( $self ) = @_;
+    my $dbh = C4::Context->dbh;
+    my $aqbudgets_spend_log_table = 'aqbudgets_spend_log';
+    $dbh->do("CREATE TABLE IF NOT EXISTS `$aqbudgets_spend_log_table` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `monetary_amount` decimal(18,2) NOT NULL,
+        `timestamp` datetime DEFAULT NULL,
+        `origin` varchar(100) DEFAULT NULL,
+        `fund` varchar(45) DEFAULT NULL,
+        `account` varchar(100) DEFAULT NULL,
+        `itemtype` varchar(45) DEFAULT NULL,
+        `copy_quantity` int(11) DEFAULT NULL,
+        `total_amount` decimal(18,2) DEFAULT NULL,
+        `location` varchar(45) DEFAULT NULL,
+        `collection` varchar(20) DEFAULT NULL,
+        `biblionumber` int(11) DEFAULT NULL,
+        PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
 };
