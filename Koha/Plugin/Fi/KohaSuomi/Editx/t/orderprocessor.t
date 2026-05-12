@@ -5,7 +5,6 @@ use Test::More tests => 8;
 use Test::MockObject;
 use Test::MockModule;
 use FindBin qw($Bin);
-use lib "$Bin/../../../../../..";
 use LWP::UserAgent;
 use HTTP::Request;
 use Koha::Database;
