@@ -587,8 +587,8 @@ sub createItem {
         my @prefixes = values %$yaml;
 
         ($args{date}) = strftime "%y%m%d", localtime;
-        ($args{tag},$args{subfield})       =  C4::Biblio::GetMarcFromKohaField("items.barcode", '');
-        ($args{loctag},$args{locsubfield}) =  C4::Biblio::GetMarcFromKohaField("items.homebranch", '');
+        ($args{tag},$args{subfield})       =  C4::Biblio::GetMarcFromKohaField("items.barcode");
+        ($args{loctag},$args{locsubfield}) =  C4::Biblio::GetMarcFromKohaField("items.homebranch");
         ($args{branchcode}) = $data->{'destinationlocation'};
         ($args{prefix}) = $yaml->{$data->{'destinationlocation'}} || $yaml->{'Default'};
         ($args{prefixes}) = \@prefixes;
