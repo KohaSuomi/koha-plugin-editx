@@ -61,7 +61,7 @@ sub getLogDir {
     return $config;
 }
 
-sub getSettings{
+sub getSettings {
     my $self = shift;
     my $confs = $self->loadConfigXml();
     $confs->{'settings'} ||= {};
@@ -101,7 +101,38 @@ sub loadPluginData {
         @pluginKeys
     );
 
-    return { map { $_->{plugin_key} => $_->{plugin_value} } @$rows };
+    my $pluginData = { map { $_->{plugin_key} => $_->{plugin_value} } @$rows };
+    
+    # If value is empty, fetch from XML config file and save to database for future use
+    my $xmlConfig = $self->loadConfigXml();
+    foreach my $key (keys %$pluginData) {
+        if (!defined $pluginData->{$key} || $pluginData->{$key} eq '') {
+            my $cleanKey = $key;
+            $cleanKey =~ s/^procurement_notification_//;
+            $cleanKey =~ s/^procurement_//;
+            my $value;
+            if (exists $xmlConfig->{settings}->{$cleanKey}) {
+                $value = $xmlConfig->{settings}->{$cleanKey};
+            } elsif (exists $xmlConfig->{notifications}->{$cleanKey}) {
+                $value = $xmlConfig->{notifications}->{$cleanKey};
+            }
+            if (defined $value) {
+                $pluginData->{$key} = $value;
+                # Save to database
+                my $dbh = C4::Context->dbh;
+                $dbh->do(
+                    "INSERT INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE plugin_value = ?",
+                    undef,
+                    PLUGIN_CLASS,
+                    $key,
+                    $value,
+                    $value
+                );
+            }
+        }
+    }
+
+    return $pluginData;
 }
 
 sub getUseAutomatchBiblios {
