@@ -11,15 +11,6 @@ This directory contains test scripts and test data population utilities for the 
   - Supports `--clear` and `--borrowernumber` flags
   - See [TESTING.md](TESTING.md) for full documentation
 
-- **`test_editx.pl`** - API endpoint tester
-  - Tests POST, GET, PUT operations
-  - Validates XML handling
-  - Tests error scenarios
-
-- **`xml_data.pl`** - Sample EDItX XML generator
-  - Contains example LibraryShipNotice XML
-  - Useful for manual testing
-
 ### Documentation
 
 - **`TESTING.md`** - Complete testing guide
