@@ -32,11 +32,7 @@ subtest 'POST valid XML file' => sub {
     my $userid    = $patron->userid;
 
     # Get XML body
-    my $xml_file = 'data/valid_shipnotice.xml';
-    open my $fh, '<', $xml_file or die "Cannot open $xml_file: $!";
-    local $/;
-    my $xml_body = <$fh>;
-    close $fh;
+    my $xml_body = valid_shipnotice_xml();
 
     # Call the API endpoint with users credentials and XML body
     my $editx_content = $t->post_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx" => { "Content-Type" => "application/xml" } => $xml_body)
@@ -81,11 +77,7 @@ subtest 'POST invalid XML file' => sub {
     my $userid = $patron->userid;
     
     # Get invalid XML body
-    my $xml_file = 'data/invalid_shipnotice.xml';
-    open my $fh, '<', $xml_file or die "Cannot open $xml_file: $!";
-    local $/;
-    my $xml_body = <$fh>;
-    close $fh;
+    my $xml_body = invalid_shipnotice_xml();
     
     # Should return 400 for invalid XML
     $t->post_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx" => { "Content-Type" => "application/xml" } => $xml_body)
@@ -108,11 +100,7 @@ subtest 'PUT update Editx content' => sub {
     my $userid = $patron->userid;
     
     # Create a test Editx content first
-    my $xml_file = 'data/valid_shipnotice.xml';
-    open my $fh, '<', $xml_file or die "Cannot open $xml_file: $!";
-    local $/;
-    my $xml_body = <$fh>;
-    close $fh;
+    my $xml_body = valid_shipnotice_xml();
     
     # Create content
     my $response = $t->post_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx" => { "Content-Type" => "application/xml" } => $xml_body)
@@ -154,11 +142,7 @@ subtest 'GET all Editx contents' => sub {
     my $userid = $patron->userid;
     
     # Create a test Editx content
-    my $xml_file = 'data/valid_shipnotice.xml';
-    open my $fh, '<', $xml_file or die "Cannot open $xml_file: $!";
-    local $/;
-    my $xml_body = <$fh>;
-    close $fh;
+    my $xml_body = valid_shipnotice_xml();
     
     $t->post_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx" => { "Content-Type" => "application/xml" } => $xml_body)
         ->status_is(201);
@@ -172,3 +156,102 @@ subtest 'GET all Editx contents' => sub {
     
     $schema->storage->txn_rollback;
 };
+
+sub valid_shipnotice_xml {
+    return '<?xml version="1.0" encoding="UTF-8"?>
+<LibraryShipNotice version="1.0">
+    <Header>
+        <ShipNoticeNumber>12345</ShipNoticeNumber>
+        <IssueDateTime>20250205T1730</IssueDateTime>
+        <PurposeCode>Original</PurposeCode>
+        <DateCoded>
+            <Date>20250205</Date>
+            <DateQualifierCode>Shipped</DateQualifierCode>
+        </DateCoded>
+        <BuyerParty>
+            <PartyID>
+                <PartyIDType>VendorAssignedID</PartyIDType>
+                <Identifier>12345</Identifier>
+            </PartyID>
+            <PartyName>
+                <NameLine>Kohala;FI-KOHA;016</NameLine>
+            </PartyName>
+        </BuyerParty>
+        <SellerParty>
+            <PartyID>
+                <PartyIDType>BuyerAssignedID</PartyIDType>
+                <Identifier>FI-BTJ</Identifier>
+            </PartyID>
+            <PartyName>
+                <NameLine>BTJ Finland Oy</NameLine>
+            </PartyName>
+        </SellerParty>
+    </Header>
+    <ItemDetail>
+        <LineNumber>1</LineNumber>
+        <ProductID>
+            <ProductIDType>EAN13</ProductIDType>
+            <Identifier>9789510506103</Identifier>
+        </ProductID>
+        <ProductID>
+            <ProductIDType>ISBN</ProductIDType>
+            <Identifier>978-951-0-50610-3</Identifier>
+        </ProductID>
+        <ItemDescription>
+            <ProductForm>BK</ProductForm>
+            <Title>Izak.</Title>
+            <Author>Elstela, Joel</Author>
+            <SeriesTitle></SeriesTitle>
+            <VolumeOrPart/>
+            <EditionStatement/>
+            <CityOfPublication></CityOfPublication>
+            <PublisherName>WSOY</PublisherName>
+            <YearOfPublication>2024</YearOfPublication>
+        </ItemDescription>
+        <QuantityShipping>1</QuantityShipping>
+        <CopyDetail>
+            <SubLineNumber>1</SubLineNumber>
+            <CopyQuantity>1</CopyQuantity>
+            <DeliverToLocation>OUPKAIK2025</DeliverToLocation>
+            <DestinationLocation>OUPKAIK2025</DestinationLocation>
+            <FundDetail>
+                <FundNumber>OUPKAIK2025</FundNumber>
+                <MonetaryAmount>12.00</MonetaryAmount>
+            </FundDetail>
+            <Message>
+                <MessageType>04</MessageType>
+                <MessageLine>&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;collection xmlns=&quot;http://www.loc.gov/MARC21/slim&quot;&gt;
+ &lt;record&gt;
+  &lt;leader&gt;00962nam a22002898a 4500&lt;/leader&gt;
+  &lt;datafield tag=&quot;245&quot; ind1=&quot;1&quot; ind2=&quot;0&quot;&gt;
+   &lt;subfield code=&quot;a&quot;&gt;Izak.&lt;/subfield&gt;
+  &lt;/datafield&gt;
+ &lt;/record&gt;
+&lt;/collection&gt;
+                </MessageLine>
+            </Message>
+        </CopyDetail>
+    </ItemDetail>
+    <Summary>
+        <NumberOfLines>1</NumberOfLines>
+        <UnitsShipped>1</UnitsShipped>
+    </Summary>
+</LibraryShipNotice>
+    ';
+}
+
+sub invalid_shipnotice_xml {
+    return '<ShipNotice>
+    <Header>
+        <DocumentNumber>12345</DocumentNumber>
+    </Header>
+    <Items>
+        <Item>
+            <ProductID>ABC123</ProductID>
+            <Quantity>-10</Quantity>
+        </Item>
+    <!-- Missing closing tag for Items -->
+</ShipNotice>
+    ';
+}
