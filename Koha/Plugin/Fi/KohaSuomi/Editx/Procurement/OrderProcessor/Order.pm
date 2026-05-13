@@ -6,13 +6,33 @@ use C4::Context;
 use C4::Acquisition;
 use Data::Dumper;
 
+use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger;
+
+has 'logger' => (
+    is      => 'rw',
+    isa => 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger',
+    reader => 'getLogger',
+    writer => 'setLogger'
+);
+
+sub BUILD {
+    my $self = shift;
+    $self->setLogger(new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger)
+        unless $self->getLogger();
+}
+
 sub createOrder {
     my $self = shift;
     my ($copyDetail, $itemDetail, $order, $biblio, $basketNumber, $authoriser) = @_;
     my $price = $itemDetail->getPriceFixedRPExcludingTax();
     my $tax_price = $itemDetail->getPriceFixedRPExcludingTax();
     my $budgetId = $self->getBudgetId($copyDetail->getFundNumber());
-    
+    unless ($budgetId) {
+        if (my $logger = $self->getLogger()) {
+            $logger->logError("Budget ID not found for fund number: " . $copyDetail->getFundNumber());
+        }
+        die "Budget ID not found for fund number: " . $copyDetail->getFundNumber();
+    }
         $order = Koha::Acquisition::Order->new(
             {
                 basketno           => $basketNumber,
