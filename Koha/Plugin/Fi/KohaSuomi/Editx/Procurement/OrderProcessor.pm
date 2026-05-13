@@ -83,6 +83,7 @@ sub process {
     my $order = $_[0];
     my $orderCreator = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor::Order->new;
     my $basketHelper = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor::Basket->new;
+    $orderCreator->setLogger($self->getLogger()) if $self->getLogger();
     if(!$order){
         $self->getLogger()->logError("Order not set.");
         return 0;
@@ -93,12 +94,28 @@ sub process {
         return 0;
     }
 
-    my ($item, $copyDetail, $copyQty, $barCode, $biblio, $biblioitem, $basketNumber, $bookseller, $itemId, $orderId);
+    # Validate config settings before processing
     my $authoriser = $self->getAuthoriser();
+    unless ($authoriser) {
+        $self->getLogger()->logError("Authoriser not set.");
+        return 0;
+    }
+
+    my $allowedLocations = $self->getAllowedLocations();
+    unless ($allowedLocations) {
+        $self->getLogger()->logError("Allowed locations are not set.");
+        return 0;
+    }
+    
     my $basketName = $order->getBasketName();
-  
+    unless ($basketName) {
+        $self->getLogger()->logError("Shipnotice number does not match basket name, or basket name not set.");
+        return 0;
+    }
     $self->getLogger()->log("getAuthoriser: " . $authoriser);
     $self->getLogger()->log("getBasketName: " . $basketName);
+
+    my ($item, $copyDetail, $copyQty, $barCode, $biblio, $biblioitem, $basketNumber, $bookseller, $itemId, $orderId);
     
     my (@copydetailstoadd, @itemstoadd, @orderstoadd, @bibliostoadd);
 
@@ -152,13 +169,6 @@ sub process {
     }
     
     $self->getLogger()->log("Budgets updated.");
-    
-    #   by the words of Johanna's granny concerning her 2-bristled dishwasher brush: 'You never know when you might need to use it'
-    #for(my $i = 0; $i <= $arr_size -1; $i++){
-    #    
-    #    ModZebra( $bibliostoadd[$i], "specialUpdate", "biblioserver" );
-    #    $self->getLogger()->log("Added bibliographic record $bibliostoadd[$i] to Zebra queue.");
-    #}
 
     $basketHelper->closeBasket($basketName);
 }
@@ -782,6 +792,16 @@ sub getAuthoriser {
         $authoriser = $settings->{settings}->{authoriser};
     }
     return $authoriser;
+}
+
+sub getAllowedLocations {
+    my $self = shift;
+    my $locationCode;
+    my $settings = $self->getConfig()->getSettings();
+    if(defined $settings->{settings}->{allowed_locations} ){
+        $locationCode = $settings->{settings}->{allowed_locations};
+    }
+    return $locationCode;
 }
 
 
