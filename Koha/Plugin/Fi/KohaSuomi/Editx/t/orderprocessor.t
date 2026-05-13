@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Test::More tests => 8;
+use Test::More tests => 9;
 use Test::MockObject;
 use Test::MockModule;
 use FindBin qw($Bin);
@@ -17,6 +17,7 @@ use Test::Mojo;
 use t::lib::TestBuilder;
 use t::lib::Mocks;
 
+use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice;
@@ -39,6 +40,47 @@ my $schema  = Koha::Database->new->schema;
 my $builder = t::lib::TestBuilder->new;
 
 $schema->storage->txn_begin;
+
+my $authoriser = Koha::Patrons->find(1) || $builder->build_object({
+    class => 'Koha::Patrons',
+    value => { borrowernumber => 1, surname => 'Test', firstname => 'Authoriser' }
+});
+
+my $mock_authoriser = $authoriser->borrowernumber;
+my $mock_location = 'AIK';
+
+my $mock_config = Test::MockObject->new();
+$mock_config->set_isa('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config');
+$mock_config->mock('getLogDir', sub {
+    return '/tmp'; # Return a temp directory for logs to avoid file IO during tests
+});
+$mock_config->mock('getSettings', sub {
+    return {
+        'settings' => {
+            'import_tmp_path' => '/tmp/editx/tmp',
+            'import_load_path' => '/tmp/editx/load',
+            'import_archive_path' => '/tmp/editx/archive',
+            'import_failed_path' => '/tmp/editx/failed',
+            'import_failed_archived_path' => '/tmp/editx/failed_archive',
+            'authoriser' => $mock_authoriser,
+            'allowed_locations' => $mock_location,
+            'productform_alternative_triggers' => '',
+            'automatch_biblios' => 'yes',
+            'use_finna_materialtype' => 'no',
+            'log_directory' => '/tmp',
+        },
+        'notifications' => {
+            'mailto' => 'test@example.com',
+            'mailfrom' => 'noreply@example.com',
+        }
+    };
+});
+$mock_config->mock('getUseAutomatchBiblios', sub {
+    return 'yes';
+});
+$mock_config->mock('getUseFinnaMaterials', sub {
+    return 'no';
+});
 
 #Find or create test library branch
 my $branch = Koha::Libraries->find('OUPK') || $builder->build_object({
@@ -85,18 +127,22 @@ is($fund->budget_code, 'OUPKAIK2026', 'Fund code is correct');
 my $order_processor = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor->new;
 # Replace default logger with a test mock to avoid file IO and capture messages.
 $order_processor->setLogger($mock_logger);
+$order_processor->setConfig($mock_config);
 my $parser = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser->new(
     objectFactory => Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice->new(
         schemaPath => '/var/lib/koha/plugins/Koha/Plugin/Fi/KohaSuomi/Editx/Procurement/EditX/XmlSchema/'
     )
 );
 
-subtest 'Successful order processing' => sub {
-    plan tests => 2;
+subtest 'Missing configurations' => sub {
+    plan tests => 4;
 
-
+    $mock_authoriser = '';
+    
+    $order_processor->setConfig($mock_config); # Update the processor's config with the new authoriser value
     my $order_object = $parser->parseDb(order_mock(
         {
+            ShipNoticeNumber => '12345',
             ProductForm => 'BK',
             DeliverToLocation => 'OUPKAIK2026',
             DestinationLocation => 'OUPKAIK2026',
@@ -104,9 +150,59 @@ subtest 'Successful order processing' => sub {
         }
     ));
 
-    $order_processor->process($order_object);
+    order_processor_helper($order_object);
+    
+    is($error_messages[0], "Authoriser not set.", 'logs missing authoriser error');
 
-    #Log messages should indicate successful processing
+    $mock_authoriser = $authoriser->borrowernumber; # Reset to valid authoriser for next test
+    $order_processor->setConfig($mock_config); # Update the processor's config with the reset authoriser value
+
+    order_processor_helper($order_object);
+
+    is(@error_messages, 0, 'No error messages were captured after setting authoriser');
+
+    $order_object = $parser->parseDb(order_mock(
+        {
+            ShipNoticeNumber => '',
+            ProductForm => 'BK',
+            DeliverToLocation => 'OUPKAIK2026',
+            DestinationLocation => 'OUPKAIK2026',
+            FundNumber => 'OUPKAIK2026'
+        }
+    ));
+
+    order_processor_helper($order_object);
+    is($error_messages[0], "Shipnotice number does not match basket name, or basket name not set.", 'logs shipnotice number and basket name mismatch error');
+
+    # Test allowed locations missing
+    $mock_location = '';
+    $order_processor->setConfig($mock_config); # Update the processor's config with the new allowed locations value
+    order_processor_helper($order_object);
+    is($error_messages[0], "Allowed locations are not set.", 'logs missing allowed locations error');
+
+    # Reset allowed locations for next tests
+    $mock_location = 'AIK';
+    $order_processor->setConfig($mock_config); # Update the processor's config with the reset allowed locations value
+
+};
+
+subtest 'Successful order processing' => sub {
+    plan tests => 2;
+
+    @error_messages = ();
+
+    my $order_object = $parser->parseDb(order_mock(
+        {
+            ShipNoticeNumber => '12345',
+            ProductForm => 'BK',
+            DeliverToLocation => 'OUPKAIK2026',
+            DestinationLocation => 'OUPKAIK2026',
+            FundNumber => 'OUPKAIK2026'
+        }
+    ));
+
+    order_processor_helper($order_object);
+
     is(scalar(@log_messages) > 0, 1, 'Log messages were captured');
     is (scalar(@error_messages), 0, 'No error messages were captured');
 
@@ -117,20 +213,15 @@ subtest 'Invalid product form' => sub {
 
     my $order_object = $parser->parseDb(order_mock(
         {
+            ShipNoticeNumber => '12345',    
             ProductForm => '99', # Invalid product form to trigger error
             DeliverToLocation => 'OUPKAIK2026',
             DestinationLocation => 'OUPKAIK2026',
             FundNumber => 'OUPKAIK2026'
         }
     ));
-    @error_messages = ();
-    my $die_message = '';
-    eval {
-        $order_processor->process($order_object);
-        1;
-    } or do {
-        $die_message = $@;
-    };
+    
+    order_processor_helper($order_object);
     
     like(
         $error_messages[0],
@@ -141,26 +232,36 @@ subtest 'Invalid product form' => sub {
 };
 
 subtest "Invalid fund number" => sub {
-    plan tests => 1;
+    plan tests => 2;
 
     my $order_object = $parser->parseDb(order_mock(
         {
+            ShipNoticeNumber => '12345',
             ProductForm => 'BK',
             DeliverToLocation => 'OUPKAIK2026',
             DestinationLocation => 'OUPKAIK2026',
             FundNumber => 'INVALID_FUND' # Invalid fund number to trigger error
         }
     ));
-    @error_messages = ();
-    my $die_message = '';
-    eval {
-        $order_processor->process($order_object);
-        1;
-    } or do {
-        $die_message = $@;
-    };
+    
+    order_processor_helper($order_object);
 
-    like($die_message, qr/Cannot insert order: Mandatory parameter budget_id is missing/, 'Die message indicates invalid fund number');
+    like($error_messages[0], qr/Budget ID not found for fund number: INVALID_FUND/, 'Error message indicates invalid fund number');
+
+     $order_object = $parser->parseDb(order_mock(
+        {
+            ShipNoticeNumber => '12345',
+            ProductForm => 'BK',
+            DeliverToLocation => 'OUPKAIK2026',
+            DestinationLocation => 'OUPKAIK2026',
+            FundNumber => 'OUPKAIK2026' # Valid fund number to ensure processing continues
+        }
+
+    ));
+
+    order_processor_helper($order_object);
+
+    is(scalar(@error_messages), 0, 'No error messages were captured with valid fund number');
 
 };
 
@@ -169,6 +270,7 @@ subtest "Invalid location" => sub {
 
     my $order_object = $parser->parseDb(order_mock(
         {
+            ShipNoticeNumber => '12345',
             ProductForm => 'BK',
             DeliverToLocation => 'HELAIK2026',
             DestinationLocation => 'OUPKAIK2026',
@@ -196,7 +298,7 @@ sub order_mock {
     return '<?xml version="1.0" encoding="UTF-8"?>
 <LibraryShipNotice version="1.0">
     <Header>
-        <ShipNoticeNumber>12345</ShipNoticeNumber>
+        <ShipNoticeNumber>'.$params->{ShipNoticeNumber}.'</ShipNoticeNumber>
         <IssueDateTime>20250205T1730</IssueDateTime>
         <PurposeCode>Original</PurposeCode>
         <DateCoded>
@@ -206,7 +308,7 @@ sub order_mock {
         <BuyerParty>
             <PartyID>
                 <PartyIDType>VendorAssignedID</PartyIDType>
-                <Identifier>12345</Identifier>
+                <Identifier>'.$params->{ShipNoticeNumber}.'</Identifier>
             </PartyID>
             <PartyName>
                 <NameLine>Kohala;FI-KOHA;016</NameLine>
@@ -395,4 +497,18 @@ sub order_mock {
     </Summary>
 </LibraryShipNotice>
     ';
+}
+
+sub order_processor_helper {
+    my $object = shift;
+    @log_messages = ();
+    @error_messages = ();
+    my $die_message = '';
+    eval {
+        $order_processor->process($object);
+        1;
+    } or do {
+        my $error = $@ || 'Unknown error';
+        return $error;
+    };
 }
