@@ -464,7 +464,6 @@ sub _procurement_settings_store_data {
 
     my %data;
     for my $key (qw(
-        import_tmp_path import_load_path import_archive_path import_failed_path import_failed_archived_path
         authoriser allowed_locations productform_alternative_triggers automatch_biblios use_finna_materialtype
         notification_mailto notification_mailfrom
     )) {
@@ -481,18 +480,9 @@ sub _validate_procurement_settings {
     my $has_blocking_errors;
     my $blocking_type = $strict ? 'error' : 'warning';
 
-    for my $field (qw(import_tmp_path import_load_path import_archive_path import_failed_path authoriser allowed_locations)) {
+    for my $field (qw(authoriser allowed_locations)) {
         next if defined $settings->{$field} && $settings->{$field} ne '';
         push @messages, $self->_configure_message( $blocking_type => "$field is required before EDItX import can run." );
-        $has_blocking_errors ||= $strict;
-    }
-
-    for my $field (qw(import_tmp_path import_load_path import_archive_path import_failed_path import_failed_archived_path)) {
-        my $path = $settings->{$field};
-        next unless defined $path && $path ne '';
-        next if -d $path && -w $path;
-
-        push @messages, $self->_configure_message( $blocking_type => "$field does not point to a writable directory: $path" );
         $has_blocking_errors ||= $strict;
     }
 
