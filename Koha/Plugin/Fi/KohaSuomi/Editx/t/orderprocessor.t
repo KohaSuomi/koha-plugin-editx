@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Test::More tests => 9;
+use Test::More tests => 11;
 use Test::MockObject;
 use Test::MockModule;
 use FindBin qw($Bin);
@@ -97,6 +97,30 @@ my $loc = Koha::AuthorisedValues->find({ category => 'LOC', authorised_value => 
 });
 
 is($loc->authorised_value, 'AIK', 'Authorised value LOC is correct');
+
+# Find or create test vendor
+my $vendor = $schema->resultset('Aqbookseller')->find({ name => 'TEST Vendor BTJ' }) || $schema->resultset('Aqbookseller')->create({
+    name => 'TEST Vendor BTJ',
+    address1 => 'Test Street 1',
+    phone => '+358 9 1234567',
+    accountnumber => 'FI-BTJ-TEST',
+    notes => 'Test vendor for EDItX testing',
+    active => 1,
+});
+
+is($vendor->name, 'TEST Vendor BTJ', 'Vendor name is correct');
+
+# Create vendor EDI account with SAN 12345 and qualifier 91
+my $vendor_edi = $schema->resultset('VendorEdiAccount')->find({ vendor_id => $vendor->id }) || $schema->resultset('VendorEdiAccount')->create({
+    description => 'TEST EDI Account',
+    vendor_id => $vendor->id,
+    san => '12345',
+    id_code_qualifier => '91',
+    transport => 'FILE',
+    orders_enabled => 1,
+});
+
+is($vendor_edi->san, '12345', 'Vendor EDI SAN is correct');
 
 # Create test budget
 my $budget = Koha::Acquisition::Budgets->find({ budget_period_description => 'OUPKAIK2026' }) || Koha::Acquisition::Budget->new(
