@@ -688,11 +688,11 @@ sub getBookseller {
         my $errorMsg;
         if ($san) {
             $errorMsg = "No vendor for SAN $san (qualifier $qualifier) in vendor_edi_accounts.";
-            $self->getLogger()->log($errorMsg);
+            $self->getLogger()->logError($errorMsg);
         }
         else {
             $errorMsg = "No vendor in shipment notice.";
-            $self->getLogger()->log($errorMsg);
+            $self->getLogger()->logError($errorMsg);
         }
         die($errorMsg);
     }
