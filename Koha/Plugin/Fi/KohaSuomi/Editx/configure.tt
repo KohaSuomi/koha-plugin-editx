@@ -1,7 +1,7 @@
 [% USE KohaDates %]
 [% INCLUDE 'doc-head-open.inc' %]
 <title>Koha: Configure EDItX plugin v[% plugin_display_version | html %]</title>
-<link rel="stylesheet" href="[% css_href | html %]" />
+<link rel="stylesheet" href="[% PLUGIN_PATH %]/static_files/editx.css" />
 [% INCLUDE 'doc-head-close.inc' %]
 </head>
 <body id="plugins_editx_configure" class="plugins">
@@ -136,18 +136,6 @@ DG,LYHYT,LYHYTHH</code></pre>
                         <a class="btn btn-default" href="/cgi-bin/koha/plugins/plugins-home.pl">Cancel</a>
                     </fieldset>
                 </form>
-
-                <div class="page-section editx-upgrade-status">
-                    <h2>Plugin status</h2>
-                    [% IF last_configured_by %]
-                        <p>Plugin settings were last updated by borrowernumber [% last_configured_by | html %].</p>
-                    [% END %]
-                    [% IF last_upgraded %]
-                        <p>Plugin was last upgraded on this system on [% last_upgraded | $KohaDates with_hours => 1 %].</p>
-                    [% ELSE %]
-                        <p>Plugin has never been upgraded.</p>
-                    [% END %]
-                </div>
             </main>
         </div>
     </div>
