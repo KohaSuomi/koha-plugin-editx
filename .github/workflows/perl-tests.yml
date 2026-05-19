@@ -91,9 +91,9 @@ jobs:
           sed -i 's#__DB_USER__#kohaadmin#g' koha/t/data/koha-conf-ci.xml
           sed -i 's#__DB_PASS__#katikoan#g' koha/t/data/koha-conf-ci.xml
           
-          # Replace placeholders in log4perl.conf
-          if [ -f koha/t/data/log4perl.conf ]; then
-            sed -i 's#__LOG_DIR__#/home/koha/var/log#g' koha/t/data/log4perl.conf
+          # Koha loads log4perl config from etc/log4perl.conf
+          if [ -f koha/etc/log4perl.conf ]; then
+            sed -i 's#__LOG_DIR__#/home/koha/var/log#g' koha/etc/log4perl.conf
           fi
 
       - name: Create and seed Koha database
