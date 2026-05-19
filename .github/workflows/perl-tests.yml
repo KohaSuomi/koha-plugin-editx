@@ -85,6 +85,11 @@ jobs:
 
           cp koha/t/data/koha-conf.xml koha/t/data/koha-conf-ci.xml
           sed -i 's#<hostname>localhost</hostname>#<hostname>127.0.0.1</hostname>#' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__LOG_DIR__#/home/koha/var/log#g' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__DB_NAME__#koha#g' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__DB_HOST__#127.0.0.1#g' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__DB_USER__#kohaadmin#g' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__DB_PASS__#katikoan#g' koha/t/data/koha-conf-ci.xml
 
       - name: Create and seed Koha database
         run: |
