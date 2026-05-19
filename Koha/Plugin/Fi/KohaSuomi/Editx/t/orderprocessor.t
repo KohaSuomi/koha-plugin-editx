@@ -41,9 +41,9 @@ my $builder = t::lib::TestBuilder->new;
 
 $schema->storage->txn_begin;
 
-my $authoriser = Koha::Patrons->find(1) || $builder->build_object({
+my $authoriser = Koha::Patrons->search({}, { order_by => { -asc => 'borrowernumber' }, rows => 1 })->single || $builder->build_object({
     class => 'Koha::Patrons',
-    value => { borrowernumber => 1, surname => 'Test', firstname => 'Authoriser' }
+    value => { surname => 'Test', firstname => 'Authoriser' }
 });
 
 my $mock_authoriser = $authoriser->borrowernumber;
