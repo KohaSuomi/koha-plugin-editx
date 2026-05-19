@@ -43,13 +43,18 @@ sub add {
 
 sub list {
     ## In this method we will handle the retrieval of all Editx contents
-    ## We will fetch all contents from the database and return them
+    ## We will fetch all contents from the database and return them with pagination
     my $c = shift->openapi->valid_input or return;
     my $logger = Koha::Logger->get({ interface => 'api' });
 
     try {
+        my $offset = $c->validation->param('offset') // 0;
+        my $limit = $c->validation->param('limit') // 100;
         my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
-        my $contents = $db->get_all_contents();
+        my $contents = $db->get_all_contents($offset, $limit);
+        my $total_count = $db->get_contents_count();
+        
+        $c->res->headers->header('X-Total-Count' => $total_count);
 
         return $c->render(status => 200, openapi => $contents); 
     }

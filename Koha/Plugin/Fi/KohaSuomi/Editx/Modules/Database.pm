@@ -99,16 +99,55 @@ sub delete {
 }
 
 sub get_all_contents {
-    ## This method retrieves all Editx contents from the database
+    ## This method retrieves all Editx contents from the database with pagination
+    ## It takes optional offset and limit parameters for pagination
     ## It returns an array reference of hash references, each representing a content
+    my ($self, $offset, $limit) = @_;
+    my $table = $self->editx;
+    my $dbh = C4::Context->dbh;
+    
+    my $query = "SELECT * FROM $table ORDER BY id DESC";
+    
+    # Add pagination if limit is provided
+    if (defined $limit && $limit > 0) {
+        $offset //= 0;
+        $query .= " LIMIT ? OFFSET ?";
+        my $sth = $dbh->prepare($query);
+        $sth->execute($limit, $offset);
+        return $sth->fetchall_arrayref({});
+    }
+    
+    my $sth = $dbh->prepare($query);
+    $sth->execute();
+    return $sth->fetchall_arrayref({});
+}
+
+sub get_contents_count {
+    ## This method returns the total count of Editx contents in the database
+    ## Used for pagination calculations
     my $self = shift;
     my $table = $self->editx;
     my $dbh = C4::Context->dbh;
-    my $query = "SELECT * FROM $table ";
+    
+    my $query = "SELECT COUNT(*) as total FROM $table";
     my $sth = $dbh->prepare($query);
     $sth->execute();
+    
+    my $result = $sth->fetchrow_hashref();
+    return $result->{total} || 0;
+}
 
-    return $sth->fetchall_arrayref({});
+sub total_contents {
+    ## This method retrieves the total number of Editx contents in the database
+    ## It returns an integer representing the total count of contents
+    my ($self) = @_;
+    my $table = $self->editx;
+    my $dbh = C4::Context->dbh;
+    my $query = "SELECT COUNT(*) AS total FROM $table";
+    my $sth = $dbh->prepare($query);
+    $sth->execute();
+    my ($total) = $sth->fetchrow_array();
+    return $total;
 }
 
 sub update_status {
@@ -127,11 +166,14 @@ sub update_status {
 
 sub get_pending_contents {
     ## This method retrieves all pending Editx contents from the database
-    ## It returns an array reference of EditxHandler objects for each pending content
-    my $self = shift;
+    ## It returns an array reference of hash references, each representing a pending content
+    my ($self, $offset, $limit) = @_;
     my $table = $self->editx;
     my $dbh = $self->dbh;
     my $query = "SELECT id, name, content FROM $table WHERE status = 'pending'";
+    if (defined $offset && defined $limit) {
+        $query .= " LIMIT $limit OFFSET $offset";
+    }
     my $sth = $dbh->prepare($query);
     $sth->execute() or die "Failed to execute query: " . $dbh->errstr;
 

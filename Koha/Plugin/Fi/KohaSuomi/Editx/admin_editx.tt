@@ -69,7 +69,7 @@
                         <div class="card-header bg-koha-green text-white d-flex justify-content-between align-items-center">
                             <h5 class="card-title mb-0">
                                 <i class="bi bi-table me-2"></i>Sanomat
-                                <span class="badge bg-white text-koha-green ms-2">{{ contents.length }}</span>
+                                <span class="badge bg-white text-koha-green ms-2">{{ total }}</span>
                             </h5>
                             <div class="d-flex align-items-center gap-2">
                                 <label class="text-white mb-0 me-2" style="font-size: 0.9rem;">Rivejä sivulla:</label>
@@ -102,7 +102,7 @@
                                                 Ei lähetysilmoituksia
                                             </td>
                                         </tr>
-                                        <tr v-for="content in paginatedContents" :key="content.id">
+                                        <tr v-for="content in contents" :key="content.id">
                                             <td class="align-middle">
                                                 <span class="badge bg-secondary">{{ content.id }}</span>
                                             </td>
@@ -157,7 +157,7 @@
                             <div class="row align-items-center">
                                 <div class="col-md-6">
                                     <p class="mb-0 text-muted small">
-                                        Näytetään {{ startIndex + 1 }}-{{ endIndex }} / {{ contents.length }} tulosta
+                                        Näytetään {{ startIndex }}-{{ endIndex }} / {{ total }} tulosta
                                     </p>
                                 </div>
                                 <div class="col-md-6">

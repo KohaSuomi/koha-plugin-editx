@@ -56,6 +56,17 @@
       - editx
     produces:
       - application/json
+    parameters:
+      - name: offset
+        in: query
+        required: false
+        type: integer
+        description: Number of items to skip before starting to collect the result set
+      - name: limit
+        in: query
+        required: false
+        type: integer
+        description: Maximum number of items to return
     responses:
       "200":
         description: A list of Editx messages

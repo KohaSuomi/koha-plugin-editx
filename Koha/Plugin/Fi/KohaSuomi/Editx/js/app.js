@@ -7,24 +7,20 @@ const app = Vue.createApp({
             success: false,
             currentPage: 1,
             itemsPerPage: 10,
+            total: 0,
         };
     },
 
     computed: {
         totalPages() {
-            return Math.ceil(this.contents.length / this.itemsPerPage);
-        },
-        paginatedContents() {
-            const start = (this.currentPage - 1) * this.itemsPerPage;
-            const end = start + this.itemsPerPage;
-            return this.contents.slice(start, end);
+            return Math.ceil(this.total / this.itemsPerPage);
         },
         startIndex() {
-            return (this.currentPage - 1) * this.itemsPerPage;
+            return this.total === 0 ? 0 : (this.currentPage - 1) * this.itemsPerPage + 1;
         },
         endIndex() {
             const end = this.currentPage * this.itemsPerPage;
-            return end > this.contents.length ? this.contents.length : end;
+            return end > this.total ? this.total : end;
         },
         visiblePages() {
             const pages = [];
@@ -45,8 +41,9 @@ const app = Vue.createApp({
 
     methods: {
         fetchContents() {
-            axios.get(`/api/v1/contrib/kohasuomi/editx`)
+            axios.get(`/api/v1/contrib/kohasuomi/editx?offset=${(this.currentPage - 1) * this.itemsPerPage}&limit=${this.itemsPerPage}`)
                 .then(response => {
+                    this.total = parseInt(response.headers['x-total-count'], 10);
                     this.contents = response.data;
                 })
                 .catch(error => {
@@ -113,12 +110,14 @@ const app = Vue.createApp({
         goToPage(page) {
             if (page >= 1 && page <= this.totalPages) {
                 this.currentPage = page;
+                this.fetchContents();
             }
         },
     },
     watch: {
         itemsPerPage() {
             this.currentPage = 1;
+            this.fetchContents();
         },
     },
     mounted() {

@@ -193,7 +193,7 @@ subtest 'PUT update Editx content' => sub {
 };
 
 subtest 'GET all Editx contents' => sub {
-    plan tests => 5;
+    plan tests => 8;
     $schema->storage->txn_begin;
     setup_editx_fixture_data();
     
@@ -217,6 +217,12 @@ subtest 'GET all Editx contents' => sub {
     
     my $contents = $list_response->tx->res->json;
     ok(scalar(@$contents) > 0, 'At least one content was returned');
+
+    my $list_offset_response = $t->get_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx?offset=0&limit=1")
+        ->status_is(200);
+    my $contents_offset = $list_offset_response->tx->res->json;
+
+    is(scalar(@$contents_offset), 1, 'Limit parameter works correctly');
     
     $schema->storage->txn_rollback;
 };
