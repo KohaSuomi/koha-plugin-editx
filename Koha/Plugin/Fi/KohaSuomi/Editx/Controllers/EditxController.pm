@@ -4,6 +4,7 @@ use Mojo::Base 'Mojolicious::Controller';
 use Try::Tiny;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database;
+use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator;
 use C4::Context;
 use Koha::Logger;
 
@@ -18,9 +19,14 @@ sub add {
     try {
         my $handler = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler->new();
         my $valid_xml = $handler->parse_xml($req);
-        if ($valid_xml->{status} != 200) {
-            warn "Invalid XML: " . $valid_xml->{message};
-            return $c->render(status => 400, openapi => {error => "Invalid XML format: " . $valid_xml->{message}});
+        my $validator = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator->new();
+        my @errors = $validator->validateEditxContent($valid_xml->{xml_doc});
+        if (@errors) {
+            $logger->error("Validation failed for Editx content: " . Data::Dumper::Dumper(\@errors) . " errors found");
+            return $c->render(status => 400, openapi => {
+                error => "Invalid Editx content",
+                errors => \@errors
+            });
         }
         my $ship_notice_number = $handler->extract_ship_notice_number($valid_xml->{xml_doc});
         my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
@@ -30,7 +36,7 @@ sub add {
     catch {
         my $error = $_;
         $logger->error("Failed to add Editx content: $error");
-        return $c->render(status => 500, openapi => {error => "Failed to save data"});
+        return $c->render(status => 500, openapi => {error => "Something went wrong, check logs for details"});
     };
 }
 
@@ -50,7 +56,7 @@ sub list {
     catch {
         my $error = $_;
         $logger->error("Failed to retrieve Editx contents: $error");
-        return $c->render(status => 500, openapi => {error => "Failed to retrieve messages"});
+        return $c->render(status => 500, openapi => {error => "Something went wrong, check logs for details"});
     };
 }
 
@@ -77,7 +83,7 @@ sub update {
     catch {
         my $error = $_;
         $logger->error("Failed to update status for content ID $id: $error");
-        return $c->render(status => 500, openapi => {error => "Failed to update status"});
+        return $c->render(status => 500, openapi => {error => "Something went wrong, check logs for details"});
     }
 }
 
@@ -101,7 +107,7 @@ sub delete {
     catch {
         my $error = $_;
         $logger->error("Failed to delete content ID $id: $error");
-        return $c->render(status => 500, openapi => {error => "Failed to delete content"});
+        return $c->render(status => 500, openapi => {error => "Something went wrong, check logs for details"});
     }
 }
 1;
