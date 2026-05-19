@@ -1,0 +1,76 @@
+name: Perl tests
+
+on:
+  push:
+    branches:
+      - ks25-v2
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mariadb:11.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@v4
+
+      - name: Check out Koha
+        uses: actions/checkout@v4
+        with:
+          repository: KohaSuomi/Koha-25x
+          ref: ks25
+          path: koha
+
+      - name: Set up Perl
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: '5.38'
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cpanminus default-libmysqlclient-dev libexpat1-dev
+
+      - name: Install Koha Perl dependencies
+        working-directory: koha
+        run: cpanm --notest --installdeps .
+
+      - name: Prepare Koha test environment
+        run: |
+          sudo mkdir -p /home/koha/var/lib/plugins /home/koha/var/log /home/koha/var/run/zebradb /home/koha/var/spool /home/koha/doc
+          sudo ln -sfn "$GITHUB_WORKSPACE/koha" /home/koha/src
+          sudo ln -sfn "$GITHUB_WORKSPACE/koha/etc" /home/koha/etc
+
+          mkdir -p koha/Koha/Plugin/Fi/KohaSuomi
+          ln -sfn "$GITHUB_WORKSPACE/Koha/Plugin/Fi/KohaSuomi/Editx" koha/Koha/Plugin/Fi/KohaSuomi/Editx
+
+          cp koha/t/data/koha-conf.xml koha/t/data/koha-conf-ci.xml
+          sed -i 's#<hostname>localhost</hostname>#<hostname>127.0.0.1</hostname>#' koha/t/data/koha-conf-ci.xml
+
+      - name: Create and seed Koha database
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS koha CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE USER IF NOT EXISTS 'kohaadmin'@'%' IDENTIFIED BY 'katikoan';"
+          mysql -h 127.0.0.1 -uroot -proot -e "GRANT ALL PRIVILEGES ON koha.* TO 'kohaadmin'@'%'; FLUSH PRIVILEGES;"
+          mysql -h 127.0.0.1 -uroot -proot koha < koha/installer/data/mysql/kohastructure.sql
+
+      - name: Run Perl tests
+        working-directory: koha
+        env:
+          KOHA_CONF: ${{ github.workspace }}/koha/t/data/koha-conf-ci.xml
+          PERL5LIB: ${{ github.workspace }}/koha:${{ github.workspace }}/koha/t/lib
+        run: prove -lr Koha/Plugin/Fi/KohaSuomi/Editx/t
