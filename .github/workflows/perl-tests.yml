@@ -108,4 +108,4 @@ jobs:
         env:
           KOHA_CONF: ${{ github.workspace }}/koha/t/data/koha-conf-ci.xml
           PERL5LIB: ${{ github.workspace }}/koha:${{ github.workspace }}/koha/t/lib
-        run: prove -lr Koha/Plugin/Fi/KohaSuomi/Editx/t
+        run: prove -lrv Koha/Plugin/Fi/KohaSuomi/Editx/t
