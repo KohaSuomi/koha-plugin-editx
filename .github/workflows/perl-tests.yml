@@ -24,6 +24,11 @@ jobs:
           --health-timeout=5s
           --health-retries=15
 
+      memcached:
+        image: memcached:1.6-alpine
+        ports:
+          - 11211:11211
+
     steps:
       - name: Check out plugin
         uses: actions/checkout@v4
@@ -44,7 +49,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cpanminus default-libmysqlclient-dev libexpat1-dev \
-            libfribidi-dev libgd-dev libyaz-dev libxslt1-dev libxml2-dev
+            libfribidi-dev libgd-dev libyaz-dev libxslt1-dev libxml2-dev libxml2-utils
 
       - name: Get Koha dependency list hash
         id: koha-deps
@@ -71,6 +76,7 @@ jobs:
       - name: Prepare Koha test environment
         run: |
           sudo mkdir -p /home/koha/var/lib/plugins /home/koha/var/log /home/koha/var/run/zebradb /home/koha/var/spool /home/koha/doc
+          sudo chmod -R 777 /home/koha/var
           sudo ln -sfn "$GITHUB_WORKSPACE/koha" /home/koha/src
           sudo ln -sfn "$GITHUB_WORKSPACE/koha/etc" /home/koha/etc
 
