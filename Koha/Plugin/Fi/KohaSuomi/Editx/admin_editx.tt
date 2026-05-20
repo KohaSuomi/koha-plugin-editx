@@ -88,7 +88,7 @@
                                     <thead class="table-light">
                                         <tr>
                                             <th scope="col" style="width: 80px;">ID</th>
-                                            <th scope="col">Aikaleima</th>
+                                            <th scope="col">Päivämäärä</th>
                                             <th scope="col">Lähetysnumero</th>
                                             <th scope="col" style="width: 150px;">Tila</th>
                                             <th scope="col">Virheilmoitus</th>
@@ -97,9 +97,9 @@
                                     </thead>
                                     <tbody>
                                         <tr v-if="contents.length === 0">
-                                            <td colspan="5" class="text-center py-5 text-muted">
+                                            <td colspan="6" class="text-center py-5 text-muted">
                                                 <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                                                Ei lähetysilmoituksia
+                                                Ei sanomia
                                             </td>
                                         </tr>
                                         <tr v-for="content in contents" :key="content.id">
@@ -107,10 +107,10 @@
                                                 <span class="badge bg-secondary">{{ content.id }}</span>
                                             </td>
                                             <td class="align-middle">
-                                                {{ new Date(content.timestamp).toLocaleString('fi-FI') }}
+                                                {{ new Date(content.transfer_date).toLocaleDateString('fi-FI') }}
                                             </td>
                                             <td class="align-middle">
-                                                <strong>{{ content.name }}</strong>
+                                                <strong>{{ content.filename }}</strong>
                                             </td>
                                             <td class="align-middle">
                                                 <span :class="getStatusBadgeClass(content.status)">
@@ -119,23 +119,23 @@
                                                 </span>
                                             </td>
                                             <td class="align-middle">
-                                                <span v-if="content.status === 'failed'" class="text-danger">
-                                                    <i class="bi bi-x-circle-fill me-1"></i>{{ content.statusmessage || 'Käsittely epäonnistui' }}
+                                                <span v-if="content.status === 'FAILED'" class="text-danger">
+                                                    <i class="bi bi-x-circle-fill me-1"></i>{{ content.details || 'Käsittely epäonnistui' }}
                                                 </span>
                                                 <span v-else class="text-muted">-</span>
                                             </td>
                                             <td class="align-middle text-center">
                                                 <div class="btn-group" role="group">
                                                     <button 
-                                                        v-if="content.status !== 'pending'" 
-                                                        @click="setStatus(content.id, 'pending')"
+                                                        v-if="content.status !== 'NEW'" 
+                                                        @click="setStatus(content.id, 'NEW')"
                                                         class="btn btn-sm btn-success"
                                                         title="Laita käsittelyyn">
                                                         <i class="bi bi-play-fill me-1"></i>Laita käsittelyyn
                                                     </button>
                                                     <button 
                                                         v-else 
-                                                        @click="setStatus(content.id, 'failed')"
+                                                        @click="setStatus(content.id, 'FAILED')"
                                                         class="btn btn-sm btn-danger"
                                                         title="Peru käsittely">
                                                         <i class="bi bi-x-circle me-1"></i>Peru käsittely

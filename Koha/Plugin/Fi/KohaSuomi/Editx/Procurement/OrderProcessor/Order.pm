@@ -31,7 +31,7 @@ sub createOrder {
         if (my $logger = $self->getLogger()) {
             $logger->logError("Budget ID not found for fund number: " . $copyDetail->getFundNumber());
         }
-        die "Budget ID not found for fund number: " . $copyDetail->getFundNumber();
+        die "Budget ID not found for fund number: " . $copyDetail->getFundNumber()."\n";
     }
         $order = Koha::Acquisition::Order->new(
             {

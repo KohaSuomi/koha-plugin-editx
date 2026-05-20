@@ -176,7 +176,7 @@ subtest 'PUT update Editx content' => sub {
     my $content_id = $contents->[0]->{id};
     
     # Test update with valid status
-    $t->put_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx/$content_id" => json => { status => 'completed' })
+    $t->put_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx/$content_id" => json => { status => 'OK' })
         ->status_is(200)
         ->json_is({ message => 'Status updated successfully' });
     
@@ -186,7 +186,7 @@ subtest 'PUT update Editx content' => sub {
         ->json_has('/errors');
     
     # Test update with non-existing ID
-    $t->put_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx/99999" => json => { status => 'pending' })
+    $t->put_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx/99999" => json => { status => 'NEW' })
         ->status_is(404);
     
     $schema->storage->txn_rollback;

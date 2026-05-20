@@ -32,8 +32,8 @@ This script populates the EDItX plugin database table with various test scenario
 
 =cut
 
-# Determine table name (plugin uses qualified table name)
-my $table_name = 'koha_plugin_fi_kohasuomi_editx_contents';
+# EDItX messages are stored in Koha core edifact tables.
+my $edi_message_type = 'EDItX';
 
 # Store created IDs for reference
 my %created_ids = (
@@ -82,8 +82,9 @@ my $dbh = C4::Context->dbh;
 sub clear_test_data {
     say "Clearing existing test data...";
     
-    # Clear EDItX contents (by ShipNoticeNumber)
-    $dbh->do("DELETE FROM $table_name WHERE name LIKE 'SN%'");
+    # Clear EDItX messages and related errors (by generated filename prefix).
+    $dbh->do("DELETE ee FROM edifact_errors ee INNER JOIN edifact_messages em ON ee.message_id = em.id WHERE em.message_type = '$edi_message_type' AND em.filename LIKE 'SN%'");
+    $dbh->do("DELETE FROM edifact_messages WHERE message_type = '$edi_message_type' AND filename LIKE 'SN%'");
     
     # Delete in order of foreign key dependencies:
     
@@ -624,33 +625,68 @@ sub generate_editx_xml {
 
 sub insert_test_record {
     my ($content, $status, $statusmessage, $transfer_time) = @_;
-    
-    # Extract ShipNoticeNumber from XML content
     my $ship_notice_number = 'UNKNOWN';
+    my $issue_date_time = DateTime->now->strftime('%Y%m%dT%H%M');
+    my $san = undef;
+
+    # Extract filename parts and vendor lookup SAN similarly to EdiMessage.
     eval {
         my $parser = XML::LibXML->new();
         my $doc = $parser->parse_string($content);
-        my ($node) = $doc->findnodes('//ShipNoticeNumber');
-        $ship_notice_number = $node->textContent if $node;
+        my ($ship_notice_node) = $doc->findnodes('/LibraryShipNotice/Header/ShipNoticeNumber');
+        my ($issue_date_time_node) = $doc->findnodes('/LibraryShipNotice/Header/IssueDateTime');
+        my ($san_node) = $doc->findnodes('/LibraryShipNotice/Header/BuyerParty/PartyID[PartyIDType/text() = "VendorAssignedID"]/Identifier');
+        my ($fallback_san_node) = $doc->findnodes('/LibraryShipNotice/Header/SellerParty/PartyID[PartyIDType/text() = "BuyerAssignedID"]/Identifier');
+
+        $ship_notice_number = $ship_notice_node->textContent if $ship_notice_node;
+        $issue_date_time = $issue_date_time_node->textContent if $issue_date_time_node;
+        $san = $san_node ? $san_node->textContent : undef;
+        $san = $fallback_san_node->textContent if !$san && $fallback_san_node;
     };
     if ($@) {
-        warn "Warning: Could not parse XML to extract ShipNoticeNumber: $@\n";
+        if ($content =~ m{<ShipNoticeNumber>([^<]+)</ShipNoticeNumber>}) {
+            $ship_notice_number = $1;
+        }
+        warn "Warning: Could not fully parse XML for metadata extraction: $@\n";
+    }
+
+    my $filename = $ship_notice_number . '_' . $issue_date_time;
+    my $vendor_id = undef;
+    if (defined $san && $san ne '') {
+        $vendor_id = $dbh->selectrow_array(
+            "SELECT vendor_id FROM vendor_edi_accounts WHERE san = ? AND transport='FILE' AND orders_enabled='1'",
+            undef,
+            $san
+        );
     }
     
     my $sql = qq{
-        INSERT INTO $table_name (name, content, status, statusmessage, transfer_time, timestamp)
-        VALUES (?, ?, ?, ?, ?, NOW())
+        INSERT INTO edifact_messages (message_type, transfer_date, raw_msg, filename, status, vendor_id)
+        VALUES (?, ?, ?, ?, ?, ?)
     };
     
-    $dbh->do($sql, undef, $ship_notice_number, $content, $status, $statusmessage, $transfer_time);
-    say "Inserted: $ship_notice_number (status: $status)";
+    my $transfer_date = $transfer_time // DateTime->now->strftime('%Y-%m-%d %H:%M:%S');
+    $dbh->do($sql, undef, $edi_message_type, $transfer_date, $content, $filename, $status, $vendor_id);
+
+    if (defined $statusmessage && $statusmessage ne '') {
+        my $message_id = $dbh->last_insert_id(undef, undef, 'edifact_messages', undef);
+        $dbh->do(
+            "INSERT INTO edifact_errors (message_id, date, section, details) VALUES (?, NOW(), ?, ?)",
+            undef,
+            $message_id,
+            'EDI',
+            $statusmessage
+        );
+    }
+
+    say "Inserted: $filename (status: $status)";
 }
 
 sub populate_test_data {
     say "\nPopulating test data...\n";
     
-    # 1. PENDING NOTICES - Waiting to be processed
-    say "Creating PENDING test records...";
+    # 1. NEW NOTICES - Waiting to be processed
+    say "Creating NEW test records...";
     
     insert_test_record(
         generate_editx_xml({
@@ -661,7 +697,7 @@ sub populate_test_data {
             publisher => 'Pending Press',
             price => '15.50'
         }),
-        'pending',
+        'NEW',
         undef,
         undef
     );
@@ -675,7 +711,7 @@ sub populate_test_data {
             quantity => '5',
             price => '22.00'
         }),
-        'pending',
+        'NEW',
         undef,
         undef
     );
@@ -689,10 +725,17 @@ sub populate_test_data {
             publisher => 'Academic Press',
             price => '95.00'
         }),
-        'pending',
+        'NEW',
         undef,
         undef
     );
+        # This record is intentionally malformed and will always fail XML parsing
+        insert_test_record(
+            '<?xml version="1.0" encoding="UTF-8"?><LibraryShipNotice><Header><ShipNoticeNumber>SN003_FAIL</ShipNoticeNumber>',
+            'NEW',
+            undef,
+            undef
+        );
     
     # 2. PROCESSING NOTICES - Currently being handled
     say "\nCreating PROCESSING test records...";
@@ -705,8 +748,8 @@ sub populate_test_data {
             author => 'Active, Author',
             price => '18.90'
         }),
-        'processing',
-        'Currently importing to catalog',
+        'PROCESSING',
+        undef,
         DateTime->now->subtract(minutes => 5)->strftime('%Y-%m-%d %H:%M:%S')
     );
     
@@ -719,8 +762,8 @@ sub populate_test_data {
             quantity => '10',
             price => '12.50'
         }),
-        'processing',
-        'Processing large order batch',
+        'PROCESSING',
+        undef,
         DateTime->now->subtract(minutes => 15)->strftime('%Y-%m-%d %H:%M:%S')
     );
     
@@ -735,8 +778,8 @@ sub populate_test_data {
             author => 'Success, Author',
             price => '14.00'
         }),
-        'completed',
-        'Successfully imported 1 item(s)',
+        'OK',
+        '',
         DateTime->now->subtract(hours => 2)->strftime('%Y-%m-%d %H:%M:%S')
     );
     
@@ -748,8 +791,8 @@ sub populate_test_data {
             author => 'Done, Writer',
             price => '19.90'
         }),
-        'completed',
-        'Successfully imported 1 item(s)',
+        'OK',
+        undef,
         DateTime->now->subtract(hours => 5)->strftime('%Y-%m-%d %H:%M:%S')
     );
     
@@ -762,8 +805,8 @@ sub populate_test_data {
             price => '21.00',
             date => DateTime->now->subtract(days => 1)->strftime('%Y%m%d')
         }),
-        'completed',
-        'Successfully imported 1 item(s)',
+        'OK',
+        undef,
         DateTime->now->subtract(days => 1)->strftime('%Y-%m-%d %H:%M:%S')
     );
     
@@ -778,7 +821,7 @@ sub populate_test_data {
             author => 'Error, Author',
             price => '16.00'
         }),
-        'failed',
+        'FAILED',
         'Invalid ISBN format',
         DateTime->now->subtract(hours => 1)->strftime('%Y-%m-%d %H:%M:%S')
     );
@@ -792,14 +835,14 @@ sub populate_test_data {
             fund => 'NONEXISTENT_FUND',
             price => '13.50'
         }),
-        'failed',
+        'FAILED',
         'Fund NONEXISTENT_FUND not found in system',
         DateTime->now->subtract(hours => 3)->strftime('%Y-%m-%d %H:%M:%S')
     );
     
     insert_test_record(
         '<?xml version="1.0" encoding="UTF-8"?><LibraryShipNotice><Header><ShipNoticeNumber>SN011</ShipNoticeNumber>',
-        'failed',
+        'FAILED',
         'Malformed XML: premature end of document',
         DateTime->now->subtract(hours => 6)->strftime('%Y-%m-%d %H:%M:%S')
     );
@@ -812,7 +855,7 @@ sub populate_test_data {
             author => 'Duplicate, Author',
             price => '17.00'
         }),
-        'failed',
+        'FAILED',
         'Duplicate shipment notice number: SN012 already processed',
         DateTime->now->subtract(days => 2)->strftime('%Y-%m-%d %H:%M:%S')
     );
@@ -825,7 +868,7 @@ sub populate_test_data {
             author => 'Timeout, Author',
             price => '20.00'
         }),
-        'failed',
+        'FAILED',
         'Network timeout while processing order',
         DateTime->now->subtract(hours => 12)->strftime('%Y-%m-%d %H:%M:%S')
     );
@@ -842,7 +885,7 @@ sub populate_test_data {
             publisher => 'Ääniteos Oy',
             price => '25.50'
         }),
-        'pending',
+        'NEW',
         undef,
         undef
     );
@@ -855,8 +898,8 @@ sub populate_test_data {
             author => 'Rare, Collector',
             price => '499.99'
         }),
-        'completed',
-        'Successfully imported 1 item(s) - high value item flagged',
+        'OK',
+        undef,
         DateTime->now->subtract(hours => 24)->strftime('%Y-%m-%d %H:%M:%S')
     );
     
@@ -870,7 +913,7 @@ sub populate_test_data {
             datetime => DateTime->now->subtract(months => 1)->strftime('%Y%m%dT%H%M'),
             price => '11.00'
         }),
-        'pending',
+        'NEW',
         undef,
         undef
     );
@@ -881,8 +924,9 @@ sub populate_test_data {
     
     # Display summary for EDItX messages
     my $summary = $dbh->selectall_arrayref(
-        "SELECT status, COUNT(*) as count FROM $table_name WHERE name LIKE 'SN%' GROUP BY status",
-        { Slice => {} }
+        "SELECT status, COUNT(*) as count FROM edifact_messages WHERE message_type = ? AND filename LIKE 'SN%' GROUP BY status",
+        { Slice => {} },
+        $edi_message_type
     );
     
     say "\nSummary of EDItX test records:";
@@ -892,7 +936,11 @@ sub populate_test_data {
     }
     say "-" x 30;
     
-    my $total = $dbh->selectrow_array("SELECT COUNT(*) FROM $table_name WHERE name LIKE 'SN%'");
+    my $total = $dbh->selectrow_array(
+        "SELECT COUNT(*) FROM edifact_messages WHERE message_type = ? AND filename LIKE 'SN%'",
+        undef,
+        $edi_message_type
+    );
     say "TOTAL          : $total records\n";
     
     # Display Koha acquisitions summary

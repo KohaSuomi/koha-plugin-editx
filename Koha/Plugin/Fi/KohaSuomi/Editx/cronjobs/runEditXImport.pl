@@ -30,6 +30,7 @@ else{
 my $fileManager = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::File;
 my $logger = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger($logPath);
 my $orderProcessor = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor;
+my $edi_message = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage;
 
 $logger->log("Started Koha::Procurement",1);
 
@@ -72,6 +73,7 @@ if(%orders){
             $logger->log($failMsq);
             $logger->logError($failMsq);
             $logger->logError("Error was: $_");
+            $edi_message->addToErrorLog($fileName, $_);
         }
     }
 }

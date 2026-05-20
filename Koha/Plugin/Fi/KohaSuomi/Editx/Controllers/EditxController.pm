@@ -5,6 +5,7 @@ use Try::Tiny;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator;
+use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage;
 use C4::Context;
 use Koha::Logger;
 
@@ -16,11 +17,12 @@ sub add {
     my $c = shift->openapi->valid_input or return;
     my $logger = Koha::Logger->get({ interface=> 'api' });   
     my $req  = $c->req->body;
+    my $current_user = $c->stash('koha.user');
     try {
-        my $handler = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler->new();
-        my $valid_xml = $handler->parse_xml($req);
+        my $edi_message = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage->new();
+        my $valid_xml = $edi_message->parse_xml($req);
         my $validator = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator->new();
-        my @errors = $validator->validateEditxContent($valid_xml->{xml_doc});
+        my @errors = $validator->validateEditxContent($valid_xml);
         if (@errors) {
             $logger->error("Validation failed for Editx content: " . Data::Dumper::Dumper(\@errors) . " errors found");
             return $c->render(status => 400, openapi => {
@@ -28,9 +30,7 @@ sub add {
                 errors => \@errors
             });
         }
-        my $ship_notice_number = $handler->extract_ship_notice_number($valid_xml->{xml_doc});
-        my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
-        my $result = $db->create({ship_notice_number => $ship_notice_number, xml_doc => $valid_xml->{xml_doc}});
+        $edi_message->newEdiMessage($valid_xml, $current_user->userid);
         return $c->render(status => 201, openapi => {message => "Data saved successfully"});
     }
     catch {
@@ -50,9 +50,9 @@ sub list {
     try {
         my $offset = $c->validation->param('offset') // 0;
         my $limit = $c->validation->param('limit') // 100;
-        my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
-        my $contents = $db->get_all_contents($offset, $limit);
-        my $total_count = $db->get_contents_count();
+        my $edi_message = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage->new();
+        my $contents = $edi_message->list($offset, $limit);
+        my $total_count = $edi_message->total_count();
         
         $c->res->headers->header('X-Total-Count' => $total_count);
 
@@ -76,8 +76,8 @@ sub update {
     my $status = $body->{status};
     
     try {
-        my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
-        my $result = $db->update_status($id, $status);
+        my $edi_message = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage->new();
+        my $result = $edi_message->update($id, $status);
 
         if ($result) {
             return $c->render(status => 200, openapi => {message => "Status updated successfully"});
@@ -100,8 +100,8 @@ sub delete {
     my $id = $c->validation->param('id');
     
     try {
-        my $db = Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database->new();
-        my $result = $db->delete($id);
+        my $edi_message = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage->new();
+        my $result = $edi_message->delete($id);
 
         if ($result) {
             return $c->render(status => 200, openapi => {message => "Content deleted successfully"});

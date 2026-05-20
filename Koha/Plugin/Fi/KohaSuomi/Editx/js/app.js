@@ -82,28 +82,28 @@ const app = Vue.createApp({
         },
         translateStatus(status) {
             const translations = {
-                'pending': 'Odottaa',
-                'processing': 'Käsitellään',
-                'completed': 'Valmis',
-                'failed': 'Epäonnistui'
+                'NEW': 'Odottaa',
+                'PROCESSING': 'Käsitellään',
+                'OK': 'Valmis',
+                'FAILED': 'Epäonnistui'
             };
             return translations[status] || status;
         },
         getStatusBadgeClass(status) {
             const classes = {
-                'pending': 'badge bg-warning text-dark',
-                'processing': 'badge bg-info',
-                'completed': 'badge bg-success',
-                'failed': 'badge bg-danger'
+                'NEW': 'badge bg-warning text-dark',
+                'PROCESSING': 'badge bg-info',
+                'OK': 'badge bg-success',
+                'FAILED': 'badge bg-danger'
             };
             return classes[status] || 'badge bg-secondary';
         },
         getStatusIcon(status) {
             const icons = {
-                'pending': 'bi bi-clock-fill',
-                'processing': 'bi bi-arrow-repeat',
-                'completed': 'bi bi-check-circle-fill',
-                'failed': 'bi bi-x-circle-fill'
+                'NEW': 'bi bi-clock-fill',
+                'PROCESSING': 'bi bi-arrow-repeat',
+                'OK': 'bi bi-check-circle-fill',
+                'FAILED': 'bi bi-x-circle-fill'
             };
             return icons[status] || 'bi bi-question-circle-fill';
         },
