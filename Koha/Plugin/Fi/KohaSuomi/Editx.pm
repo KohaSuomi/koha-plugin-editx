@@ -14,13 +14,13 @@ use Mojo::Util qw(url_escape);
 use Text::CSV_XS;
 use utf8;
 ## Here we set our plugin version
-our $VERSION = "1.0.4";
+our $VERSION = "2.0.0";
 ## Here is our metadata, some keys are required, some are optional
 our $metadata = {
     name            => 'EDItX-plugin',
     author          => 'Lari Strand',
     date_authored   => '2022-04-05',
-    date_updated    => '2025-10-16',
+    date_updated    => '2026-05-21',
     minimum_version => '21.05',
     maximum_version => '',
     version         => $VERSION,
@@ -57,7 +57,7 @@ sub admin {
 ## or false if it failed.
 sub install() {
     my ( $self, $args ) = @_;
-    $self->create_editx_contents_table();
+    $self->drop_editx_contents_table();
     $self->create_map_productform();
     $self->create_aqbudgets_spend_log();
     $self->sql_insert_data();
@@ -70,7 +70,7 @@ sub install() {
 sub upgrade {
     my ( $self, $args ) = @_;
     my $dbh = C4::Context->dbh;
-    $self->create_editx_contents_table();
+    $self->drop_editx_contents_table();
     $self->create_map_productform();
     $self->create_aqbudgets_spend_log();
     $dbh->do("INSERT IGNORE INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES ('Koha::Plugin::Fi::KohaSuomi::Editx', 'next_barcode', '1');");
@@ -187,6 +187,15 @@ sub create_editx_contents_table {
     PRIMARY KEY (`id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
+}
+
+sub drop_editx_contents_table {
+    my ( $self ) = @_;
+
+    my $dbh = C4::Context->dbh;
+    my $editxTable = $self->get_qualified_table_name('contents');
+
+    $dbh->do("DROP TABLE IF EXISTS `$editxTable`");
 }
 
 sub create_map_productform {
