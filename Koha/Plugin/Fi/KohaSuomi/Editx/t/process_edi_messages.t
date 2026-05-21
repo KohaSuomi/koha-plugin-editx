@@ -17,6 +17,7 @@ my @error_logs;
 my @processed_ids;
 my @parsed_raw_inputs;
 my %search_filters;
+my @claims;
 
 {
     package TestEdiMessageRow;
@@ -91,6 +92,11 @@ my $mock_edimessage = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx:
 $mock_edimessage->redefine('new', sub {
     return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage';
 });
+$mock_edimessage->redefine('claimForProcessing', sub {
+    my ($self, $id) = @_;
+    push @claims, $id;
+    return 1;
+});
 $mock_edimessage->redefine('update', sub {
     my ($self, $id, $status) = @_;
     push @updates, { id => $id, status => $status };
@@ -113,6 +119,7 @@ sub run_cron {
     @error_logs = ();
     @processed_ids = ();
     @parsed_raw_inputs = ();
+    @claims = ();
     %search_filters = ();
 
     my $script = File::Spec->catfile($Bin, '..', 'cronjobs', 'process_edi_messages.pl');
@@ -138,16 +145,15 @@ subtest 'processes NEW messages to OK' => sub {
     is($search_filters{message_type}, 'EDItX', 'filters by EDItX message type');
     is($search_filters{status}, 'NEW', 'filters by NEW status');
     is_deeply(\@parsed_raw_inputs, ['msg:1', 'msg:2'], 'raw XML payloads were parsed');
+    is_deeply(\@claims, [1, 2], 'messages were claimed for processing');
     is_deeply(\@processed_ids, [1, 2], 'orders were processed');
     is_deeply(
         \@updates,
         [
-            { id => 1, status => 'PROCESSING' },
             { id => 1, status => 'OK' },
-            { id => 2, status => 'PROCESSING' },
             { id => 2, status => 'OK' },
         ],
-        'status transitions are PROCESSING then OK for each message'
+        'terminal status is set to OK for each message'
     );
     is(scalar @error_logs, 0, 'no error logs written');
 };
@@ -164,14 +170,14 @@ subtest 'marks FAILED and logs error when processing fails' => sub {
 
     ok($ok, 'cron script handles processing failure without dying');
     is($error, '', 'no eval error from script');
+    is_deeply(\@claims, [10], 'message was claimed for processing');
     is_deeply(\@processed_ids, [10], 'processing was attempted once');
     is_deeply(
         \@updates,
         [
-            { id => 10, status => 'PROCESSING' },
             { id => 10, status => 'FAILED' },
         ],
-        'status transitions to FAILED on processing error'
+        'terminal status transitions to FAILED on processing error'
     );
     is(scalar @error_logs, 1, 'one error log entry written');
     is($error_logs[0]->{id}, 10, 'error log references message id');
@@ -190,14 +196,14 @@ subtest 'marks FAILED and logs error when parsing fails' => sub {
 
     ok($ok, 'cron script handles parse failure without dying');
     is($error, '', 'no eval error from script');
+    is_deeply(\@claims, [20], 'message was claimed for processing');
     is(scalar @processed_ids, 0, 'processing not called when parsing fails');
     is_deeply(
         \@updates,
         [
-            { id => 20, status => 'PROCESSING' },
             { id => 20, status => 'FAILED' },
         ],
-        'status transitions to FAILED on parse error'
+        'terminal status transitions to FAILED on parse error'
     );
     is(scalar @error_logs, 1, 'one parse error log entry written');
     is($error_logs[0]->{id}, 20, 'parse error log references message id');

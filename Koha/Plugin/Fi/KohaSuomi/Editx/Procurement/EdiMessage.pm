@@ -17,10 +17,11 @@ sub add {
     my $self = shift;
     my $messagefile = $_[0];
     my $raw_message = $_[1];
+    my $status = $_[2] // 'NEW';
     my $dbh = C4::Context->dbh;
     $dbh->do("DELETE FROM edifact_messages WHERE filename='$messagefile'");
-    my $sth = $dbh->prepare("INSERT INTO edifact_messages (message_type, transfer_date, raw_msg, filename, status) VALUES ('EDItX', NOW(), ?, ?, 'new')");
-    $sth->execute($raw_message, $messagefile);
+    my $sth = $dbh->prepare("INSERT INTO edifact_messages (message_type, transfer_date, raw_msg, filename, status) VALUES ('EDItX', NOW(), ?, ?, ?)");
+    $sth->execute($raw_message, $messagefile, $status);
 }
 
 sub create {
@@ -29,7 +30,7 @@ sub create {
     my $filename = $_[1];
     my $vendor_id = $_[2];
     my $dbh = C4::Context->dbh;
-    my $sth = $dbh->prepare("INSERT INTO edifact_messages (message_type, transfer_date, raw_msg, filename, status, vendor_id) VALUES ('EDItX', NOW(), ?, ?, 'new', ?)");
+    my $sth = $dbh->prepare("INSERT INTO edifact_messages (message_type, transfer_date, raw_msg, filename, status, vendor_id) VALUES ('EDItX', NOW(), ?, ?, 'NEW', ?)");
     $sth->execute($raw_message, $filename, $vendor_id);
 }
 
@@ -52,6 +53,18 @@ sub update {
     }
 
     return $rows;
+}
+
+sub claimForProcessing {
+    my $self = shift;
+    my $id = $_[0];
+    my $dbh = C4::Context->dbh;
+
+    # Atomic claim: only one worker can flip NEW -> PROCESSING.
+    my $sth = $dbh->prepare("UPDATE edifact_messages SET status='PROCESSING' WHERE id=? AND status='NEW'");
+    $sth->execute($id);
+
+    return $sth->rows;
 }
 
 sub delete {

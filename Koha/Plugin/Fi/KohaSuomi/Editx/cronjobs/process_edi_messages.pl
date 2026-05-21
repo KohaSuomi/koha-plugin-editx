@@ -34,7 +34,9 @@ my @new_messages = $schema->resultset('EdifactMessage')->search(
 
 foreach my $message (@new_messages) {
     try {
-        $edi_message->update($message->id, 'PROCESSING');
+        my $claimed = $edi_message->claimForProcessing($message->id);
+        next unless $claimed;
+
         my $order_object = $parser->parseDb($message->raw_msg);
 
         if (!$order_object) {
