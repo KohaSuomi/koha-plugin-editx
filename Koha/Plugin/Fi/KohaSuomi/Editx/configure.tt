@@ -1,6 +1,11 @@
+[% TRY %]
+    [% PROCESS "$PLUGIN_DIR/i18n/${LANG}.inc" %]
+[% CATCH %]
+    [% PROCESS "$PLUGIN_DIR/i18n/default.inc" %]
+[% END %]
 [% USE KohaDates %]
 [% INCLUDE 'doc-head-open.inc' %]
-<title>Koha: Configure EDItX plugin v[% plugin_display_version | html %]</title>
+<title>[% T.configure_1 %][% plugin_display_version | html %]</title>
 <link rel="stylesheet" href="[% PLUGIN_PATH %]/static_files/editx.css" />
 [% INCLUDE 'doc-head-close.inc' %]
 </head>
@@ -17,25 +22,25 @@
 
                 <div class="page-section editx-page-header">
                     <div>
-                        <h1>Configure EDItX plugin v[% plugin_display_version | html %]</h1>
-                        <p class="help-block">Configure the import folders, EDItX processing rules, notifications, and ONIX ProductForm mappings.</p>
+                        <h1>[% T.configure_2 %][% plugin_display_version | html %]</h1>
+                        <p class="help-block">[% T.configure_3 %]</p>
                     </div>
                     <div class="editx-status-strip">
                         <div class="editx-status-item">
-                            <span class="editx-status-label">Import intake</span>
-                            <strong>[% IF procurement_settings.import_tmp_path %]Configured[% ELSE %]Missing[% END %]</strong>
+                            <span class="editx-status-label">[% T.configure_4 %]</span>
+                            <strong>[% IF procurement_settings.import_tmp_path %][% T.configure_5 %][% ELSE %][% T.configure_6 %][% END %]</strong>
                             <span class="editx-status-note">[% procurement_settings.import_tmp_path | html %]</span>
                         </div>
                         <div class="editx-status-item">
-                            <span class="editx-status-label">Item types</span>
-                            <strong>[% IF itemtypes_text %]Available[% ELSE %]Missing[% END %]</strong>
-                            <span class="editx-status-note">ProductForm mapping target</span>
+                            <span class="editx-status-label">[% T.configure_7 %]</span>
+                            <strong>[% IF itemtypes_text %][% T.configure_8 %][% ELSE %][% T.configure_6 %][% END %]</strong>
+                            <span class="editx-status-note">[% T.configure_9 %]</span>
                         </div>
                     </div>
                 </div>
 
                 [% IF saved %]
-                    <div class="alert alert-success">EDItX plugin configuration saved.</div>
+                    <div class="alert alert-success">[% T.configure_10 %]</div>
                 [% END %]
 
                 [% FOREACH message IN messages %]
@@ -49,75 +54,75 @@
                     [% INCLUDE 'csrf-token.inc' %]
 
                     <fieldset class="rows">
-                        <legend>Processing rules</legend>
+                        <legend>[% T.configure_11 %]</legend>
                         <ol>
                             <li>
-                                <label for="authoriser">Order authoriser borrowernumber</label>
+                                <label for="authoriser">[% T.configure_12 %]</label>
                                 <input id="authoriser" name="authoriser" type="number" min="1" value="[% procurement_settings.authoriser | html %]" />
-                                <div class="hint">Used as the Koha user creating acquisition baskets and orders.</div>
+                                <div class="hint">[% T.configure_13 %]</div>
                             </li>
                             <li>
-                                <label for="allowed_locations">Allowed locations</label>
+                                <label for="allowed_locations">[% T.configure_14 %]</label>
                                 <input id="allowed_locations" name="allowed_locations" type="text" size="60" value="[% procurement_settings.allowed_locations | html %]" />
-                                <div class="hint">Comma-separated shelving location codes accepted when parsing branch, location, and year from EDItX fund number.</div>
-                                <div class="editx-reference-list"><strong>Existing Koha LOC values:</strong> [% IF locations_text %][% locations_text | html %][% ELSE %]No LOC authorised values found.[% END %]</div>
-                                <div class="editx-reference-list"><strong>Existing branches:</strong> [% IF branches_text %][% branches_text | html %][% ELSE %]No branches found.[% END %]</div>
+                                <div class="hint">[% T.configure_15 %]</div>
+                                <div class="editx-reference-list"><strong>[% T.configure_16 %]</strong> [% IF locations_text %][% locations_text | html %][% ELSE %][% T.configure_17 %][% END %]</div>
+                                <div class="editx-reference-list"><strong>[% T.configure_18 %]</strong> [% IF branches_text %][% branches_text | html %][% ELSE %][% T.configure_19 %][% END %]</div>
                             </li>
                             <li>
-                                <label for="productform_alternative_triggers">Alternative ProductForm locations</label>
+                                <label for="productform_alternative_triggers">[% T.configure_20 %]</label>
                                 <input id="productform_alternative_triggers" name="productform_alternative_triggers" type="text" size="60" value="[% procurement_settings.productform_alternative_triggers | html %]" />
-                                <div class="hint">Comma-separated allowed location codes that should use productform_alternative from the mapping table.</div>
+                                <div class="hint">[% T.configure_21 %]</div>
                             </li>
                             <li>
-                                <label for="automatch_biblios">Automatch biblios</label>
+                                <label for="automatch_biblios">[% T.configure_22 %]</label>
                                 <input id="automatch_biblios"
                                        name="automatch_biblios"
                                        type="checkbox"
                                        value="1"
                                        [% IF procurement_settings.automatch_biblios == 'yes' %]checked="checked"[% END %] />
-                                <div class="hint">When enabled, EDItX import tries to match an existing biblio before creating a new one.</div>
+                                <div class="hint">[% T.configure_23 %]</div>
                             </li>
                             <li>
-                                <label for="use_finna_materialtype">Use Finna material type</label>
+                                <label for="use_finna_materialtype">[% T.configure_24 %]</label>
                                 <input id="use_finna_materialtype"
                                        name="use_finna_materialtype"
                                        type="checkbox"
                                        value="1"
                                        [% IF procurement_settings.use_finna_materialtype == 'yes' %]checked="checked"[% END %] />
-                                <div class="hint">When enabled, 942$c is derived from Finna material type instead of ONIX ProductForm mapping.</div>
+                                <div class="hint">[% T.configure_25 %]</div>
                             </li>
                         </ol>
                     </fieldset>
 
                     <fieldset class="rows">
-                        <legend>Failure notifications</legend>
+                        <legend>[% T.configure_26 %]</legend>
                         <ol>
                             <li>
-                                <label for="notification_mailto">Recipients</label>
+                                <label for="notification_mailto">[% T.configure_27 %]</label>
                                 <input id="notification_mailto" name="notification_mailto" type="text" size="80" value="[% procurement_settings.notification_mailto | html %]" />
-                                <div class="hint">Comma-separated email addresses for helper scripts that report failed EDItX processing.</div>
+                                <div class="hint">[% T.configure_28 %]</div>
                             </li>
                             <li>
-                                <label for="notification_mailfrom">Sender</label>
+                                <label for="notification_mailfrom">[% T.configure_29 %]</label>
                                 <input id="notification_mailfrom" name="notification_mailfrom" type="text" size="80" value="[% procurement_settings.notification_mailfrom | html %]" />
                             </li>
                         </ol>
                     </fieldset>
 
                     <fieldset class="rows">
-                        <legend>Product form mappings</legend>
+                        <legend>[% T.configure_30 %]</legend>
                         <ol>
                             <li>
-                                <label for="mapping_csv">CSV mappings</label>
+                                <label for="mapping_csv">[% T.configure_31 %]</label>
                                 <textarea id="mapping_csv"
                                           name="mapping_csv"
                                           class="editx-monospace"
                                           cols="100"
                                           rows="24"
                                           wrap="off">[% mapping_csv | html %]</textarea>
-                                <div class="hint">Invalid item type values are stored as empty mapping cells, then reported here before save.</div>
+                                <div class="hint">[% T.configure_32 %]</div>
                                 <details class="editx-example">
-                                    <summary>CSV mapping example</summary>
+                                    <summary>[% T.configure_33 %]</summary>
                                     <pre class="editx-code-example"><code>onix_code,productform,productform_alternative
 AA,YLEIS,
 BB,ESINE,
@@ -125,15 +130,15 @@ DG,LYHYT,LYHYTHH</code></pre>
                                 </details>
                             </li>
                             <li>
-                                <span class="label">Existing Koha item types</span>
-                                <span class="editx-reference-list">[% IF itemtypes_text %][% itemtypes_text | html %][% ELSE %]No item types found.[% END %]</span>
+                                <span class="label">[% T.configure_34 %]</span>
+                                <span class="editx-reference-list">[% IF itemtypes_text %][% itemtypes_text | html %][% ELSE %][% T.configure_35 %][% END %]</span>
                             </li>
                         </ol>
                     </fieldset>
 
                     <fieldset class="action">
-                        <input type="submit" class="btn btn-primary" value="Save configuration" />
-                        <a class="btn btn-default" href="/cgi-bin/koha/plugins/plugins-home.pl">Cancel</a>
+                        <input type="submit" class="btn btn-primary" value="[% T.configure_36 %]" />
+                        <a class="btn btn-default" href="/cgi-bin/koha/plugins/plugins-home.pl">[% T.configure_37 %]</a>
                     </fieldset>
                 </form>
             </main>
