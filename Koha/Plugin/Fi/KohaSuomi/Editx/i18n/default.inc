@@ -13,7 +13,7 @@
         admin_editx_11                             = "Rows per page:",
         admin_editx_12                             = "ID",
         admin_editx_13                             = "Date",
-        admin_editx_14                             = "Submission number",
+        admin_editx_14                             = "Shipment number",
         admin_editx_15                             = "Status",
         admin_editx_16                             = "Error message",
         admin_editx_17                             = "Actions",
