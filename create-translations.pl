@@ -83,6 +83,7 @@ sub is_translatable {
     return 0 unless $text =~ /[a-zA-Z\x{00C0}-\x{024F}]/;
     return 0 if $text =~ /=["']/;          # HTML/Vue attribute fragment
     return 0 if $text =~ /^(?:@|:|v-)/;   # Vue directive/binding (@click, :class, v-if)
+    return 0 if $text =~ /^(?:&[a-zA-Z]+;|&#x?[0-9a-fA-F]+;|\s)+$/;  # Only HTML entities
     return 1;
 }
 
