@@ -125,8 +125,19 @@ sub register_string {
 for my $tt_file (@tt_files) {
     my $page_name = basename($tt_file, '.tt');
     open(my $fh, '<:encoding(UTF-8)', $tt_file) or die "Cannot open $tt_file: $!";
+    my $in_script = 0;
+    my $in_style = 0;
     while (my $line = <$fh>) {
         chomp $line;
+        # Track when we're inside <script> or <style> blocks
+        $in_script = 1 if $line =~ /<script\b/i;
+        $in_style = 1 if $line =~ /<style\b/i;
+        $in_script = 0 if $line =~ /<\/script>/i;
+        $in_style = 0 if $line =~ /<\/style>/i;
+        
+        # Skip extraction if we're inside script or style blocks
+        next if $in_script || $in_style;
+        
         while ($line =~ />([^<]+)/g) {
             extract_and_register($1, $page_name);
         }
