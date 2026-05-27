@@ -139,6 +139,11 @@ for my $tt_file (@tt_files) {
         # Skip extraction if we're inside script or style blocks
         next if $in_script || $in_style;
         
+        # Text at the beginning of a line (before first tag or Vue expression)
+        if ($line =~ /^\s*([^<\{]+)(?:<|\{\{)/) {
+            extract_and_register($1, $page_name);
+        }
+        
         while ($line =~ />([^<]+)/g) {
             extract_and_register($1, $page_name);
         }
