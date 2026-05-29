@@ -150,14 +150,24 @@ subtest 'POST invalid XML file' => sub {
 };
 
 subtest 'PUT update Editx content' => sub {
-    plan tests => 12;
+    plan tests => 14;
     $schema->storage->txn_begin;
     setup_editx_fixture_data();
     
     my $patron = $builder->build_object({
         class => 'Koha::Patrons',
-        value => { flags => 2**11 }    #acquisition
+        value => { flags => 0 }    #no permissions, will add editx permissions separately
     });
+    $builder->build(
+        {
+            source => 'UserPermission',
+            value  => {
+                borrowernumber => $patron->borrowernumber,
+                module_bit     => 11,    # Acquisition
+                code           => 'edi_manage',
+            },
+        }
+    );
     my $password = 'thePassword123';
     $patron->set_password({ password => $password, skip_validation => 1 });
     my $userid = $patron->userid;
@@ -168,10 +178,26 @@ subtest 'PUT update Editx content' => sub {
     # Create content
     my $response = $t->post_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx" => { "Content-Type" => "application/xml" } => $xml_body)
         ->status_is(201);
+
+    my $invalid_list_response = $t->get_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx")
+        ->status_is(403);
+    
+    # Add permissions for plugins to test that both acquisition and plugins permissions are required for update
+    $builder->build(
+        {
+            source => 'UserPermission',
+            value  => {
+                borrowernumber => $patron->borrowernumber,
+                module_bit     => 19,    # Plugins
+                code           => 'admin',
+            },
+        }
+    );
     
     # Get the created content ID by listing all contents
     my $list_response = $t->get_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx")
         ->status_is(200);
+
     my $contents = $list_response->tx->res->json;
     my $content_id = $contents->[0]->{id};
     
@@ -199,8 +225,28 @@ subtest 'GET all Editx contents' => sub {
     
     my $patron = $builder->build_object({
         class => 'Koha::Patrons',
-        value => { flags => 2**11 }    #acquisition
+        value => { flags => 0 }    #no permissions, add granular permissions below
     });
+    $builder->build(
+        {
+            source => 'UserPermission',
+            value  => {
+                borrowernumber => $patron->borrowernumber,
+                module_bit     => 11,    # Acquisition
+                code           => 'edi_manage',
+            },
+        }
+    );
+    $builder->build(
+        {
+            source => 'UserPermission',
+            value  => {
+                borrowernumber => $patron->borrowernumber,
+                module_bit     => 19,    # Plugins
+                code           => 'admin',
+            },
+        }
+    );
     my $password = 'thePassword123';
     $patron->set_password({ password => $password, skip_validation => 1 });
     my $userid = $patron->userid;

@@ -83,6 +83,7 @@
     x-koha-authorization:
       permissions:
         acquisition: edi_manage
+        plugins: admin
 "/editx/{id}":
   put:
     x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#update"
@@ -149,6 +150,7 @@
     x-koha-authorization:
       permissions:
         acquisition: edi_manage
+        plugins: admin
   delete:
     x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#delete"
     operationId: deleteEditx
@@ -190,3 +192,4 @@
     x-koha-authorization:
       permissions:
         acquisition: edi_manage
+        plugins: admin
