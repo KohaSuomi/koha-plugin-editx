@@ -92,7 +92,7 @@ sub parseFile{
         return 0;
     }
    # $fileData = NFC($fileData);
-    $fileData = encode('UTF-8', $fileData, Encode::FB_CROAK);
+    $fileData = decode('UTF-8', $fileData, Encode::FB_CROAK);
     $parser = eval { $parser->load_xml('string' => $fileData) };
 
     my $xml = XML::LibXML::XPathContext->new;

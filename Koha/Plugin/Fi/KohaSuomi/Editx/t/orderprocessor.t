@@ -1,7 +1,8 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Test::More tests => 11;
+use utf8;
+use Test::More tests => 13;
 use Test::MockObject;
 use Test::MockModule;
 use FindBin qw($Bin);
@@ -314,6 +315,96 @@ subtest "Invalid location" => sub {
 
 };
 
+subtest 'UTF-8 MARC from parseDb is preserved' => sub {
+    plan tests => 3;
+
+    $mock_config->mock('getUseAutomatchBiblios', sub { return 'no'; });
+
+    my ($before_biblio) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio_metadata}
+    );
+
+    my $order_object = $parser->parseDb(order_mock(
+        {
+            ShipNoticeNumber => '12345',
+            ProductForm => 'BK',
+            DeliverToLocation => 'OUPKAIK2026',
+            DestinationLocation => 'OUPKAIK2026',
+            FundNumber => 'OUPKAIK2026',
+            Author => 'Münchner Symphoniker; Joseph Bastian',
+            Title => 'Gaelic Symphony &amp; Vocal Works',
+            MarcAuthor => 'Münchner Symphoniker; Joseph Bastian',
+            MarcTitle => 'Gaelic Symphony &amp;amp; Vocal Works',
+            MarcPhysical => '1 CD-äänilevy',
+        }
+    ));
+
+    order_processor_helper($order_object);
+    is(scalar(@error_messages), 0, 'No error messages while processing UTF-8 MARC');
+
+    my ($metadata) = $schema->storage->dbh->selectrow_array(
+        q{SELECT metadata FROM biblio_metadata WHERE biblionumber > ? ORDER BY biblionumber DESC LIMIT 1},
+        undef,
+        $before_biblio
+    );
+
+    ok(defined $metadata && $metadata ne '', 'Stored MARC metadata exists');
+    like($metadata, qr/Münchner Symphoniker; Joseph Bastian.*1 CD-äänilevy/s, 'Stored MARC metadata keeps UTF-8 characters');
+
+    $mock_config->mock('getUseAutomatchBiblios', sub { return 'yes'; });
+};
+
+subtest 'UTF-8 MARC from parseFile is preserved' => sub {
+    plan tests => 4;
+
+    @error_messages = ();
+    $mock_config->mock('getUseAutomatchBiblios', sub { return 'no'; });
+
+    my ($before_biblio) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio_metadata}
+    );
+
+    # Create temporary file with UTF-8 content
+    use File::Temp qw(tempfile);
+    my ($fh, $tempfile) = tempfile(SUFFIX => '.xml', UNLINK => 1);
+    binmode($fh, ':encoding(UTF-8)');
+    print $fh order_mock(
+        {
+            ShipNoticeNumber => '12345',
+            ProductForm => 'BK',
+            DeliverToLocation => 'OUPKAIK2026',
+            DestinationLocation => 'OUPKAIK2026',
+            FundNumber => 'OUPKAIK2026',
+            Author => 'Tuomarila, Alexi',
+            Title => 'Departing the wasteland',
+            MarcAuthor => 'Tuomarila, Alexi',
+            MarcTitle => 'Departing the wasteland',
+            MarcPhysical => '1 CD-äänilevy',
+        }
+    );
+    close $fh;
+
+    my $order_object = $parser->parseFile($tempfile);
+    ok($order_object, 'parseFile returned an object');
+
+    order_processor_helper($order_object);
+    if (@error_messages) {
+        warn "ERRORS: " . join(", ", @error_messages) . "\n";
+    }
+    is(scalar(@error_messages), 0, 'No error messages while processing UTF-8 MARC from file');
+
+    my ($metadata) = $schema->storage->dbh->selectrow_array(
+        q{SELECT metadata FROM biblio_metadata WHERE biblionumber > ? ORDER BY biblionumber DESC LIMIT 1},
+        undef,
+        $before_biblio
+    );
+
+    ok(defined $metadata && $metadata ne '', 'Stored MARC metadata from file exists');
+    like($metadata, qr/Tuomarila, Alexi.*1 CD-äänilevy/s, 'Stored MARC metadata from file keeps UTF-8 characters');
+
+    $mock_config->mock('getUseAutomatchBiblios', sub { return 'yes'; });
+};
+
 $schema->storage->txn_rollback;
 
 
@@ -360,8 +451,8 @@ sub order_mock {
         </ProductID>
         <ItemDescription>
             <ProductForm>'.$params->{ProductForm}.'</ProductForm>
-            <Title>Izak.</Title>
-            <Author>Elstelä, Joel</Author>
+            <Title>'.($params->{Title} // 'Izak.').'</Title>
+            <Author>'.($params->{Author} // 'Elstelä, Joel').'</Author>
             <SeriesTitle></SeriesTitle>
             <VolumeOrPart/>
             <EditionStatement/>
@@ -456,11 +547,11 @@ sub order_mock {
    &lt;subfield code=&quot;a&quot;&gt;84.2&lt;/subfield&gt;
   &lt;/datafield&gt;
   &lt;datafield tag=&quot;100&quot; ind1=&quot;1&quot; ind2=&quot; &quot;&gt;
-   &lt;subfield code=&quot;a&quot;&gt;Elstelä, Joel&lt;/subfield&gt;
+    &lt;subfield code=&quot;a&quot;&gt;'.($params->{MarcAuthor} // 'Elstelä, Joel').'&lt;/subfield&gt;
    &lt;subfield code=&quot;e&quot;&gt;kirjoittaja&lt;/subfield&gt;
   &lt;/datafield&gt;
   &lt;datafield tag=&quot;245&quot; ind1=&quot;1&quot; ind2=&quot;0&quot;&gt;
-   &lt;subfield code=&quot;a&quot;&gt;Izak.&lt;/subfield&gt;
+    &lt;subfield code=&quot;a&quot;&gt;'.($params->{MarcTitle} // 'Izak.').'&lt;/subfield&gt;
   &lt;/datafield&gt;
   &lt;datafield tag=&quot;250&quot; ind1=&quot; &quot; ind2=&quot; &quot;&gt;
    &lt;subfield code=&quot;a&quot;&gt;1. p.&lt;/subfield&gt;
@@ -477,7 +568,7 @@ sub order_mock {
    &lt;subfield code=&quot;c&quot;&gt;2024&lt;/subfield&gt;
   &lt;/datafield&gt;
   &lt;datafield tag=&quot;300&quot; ind1=&quot; &quot; ind2=&quot; &quot;&gt;
-   &lt;subfield code=&quot;c&quot;&gt;korkeus 221 mm, leveys 144 mm, paksuus 46 mm&lt;/subfield&gt;
+    &lt;subfield code=&quot;c&quot;&gt;'.($params->{MarcPhysical} // 'korkeus 221 mm, leveys 144 mm, paksuus 46 mm').'&lt;/subfield&gt;
   &lt;/datafield&gt;
   &lt;datafield tag=&quot;336&quot; ind1=&quot; &quot; ind2=&quot; &quot;&gt;
    &lt;subfield code=&quot;2&quot;&gt;rdacontent&lt;/subfield&gt;

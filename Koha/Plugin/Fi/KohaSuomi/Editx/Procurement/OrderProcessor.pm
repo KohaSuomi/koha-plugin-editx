@@ -457,7 +457,6 @@ sub createBiblioItem {
         $data->{'editionstatement'} = $copyDetail->getEditionStatement();
         $data->{'timestamp'} = $order->getTimeStamp();
         my $marc = $copyDetail->getMarcXml();
-        utf8::decode($marc);
         $data->{'marcxml'} = $marc;
         $data->{'notes'} = $itemDetail->getNotes();
         $data->{'image'} = $copyDetail->getImageDescrition();
@@ -524,7 +523,6 @@ sub createBiblioMetadata {
     if($itemDetail->isa('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail') ){
         $data->{'biblio'} = $biblio;
         my $marc = $copyDetail->getMarcXml();
-        utf8::decode($marc);
         $data->{'marcxml'} = $marc;
         $data->{'format'} = 'marcxml';
         $data->{'marcflavour'} = C4::Context->preference('marcflavour');
