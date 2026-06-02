@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use Modern::Perl;
+use utf8;
 use C4::Context;
 use DateTime;
 use Getopt::Long;

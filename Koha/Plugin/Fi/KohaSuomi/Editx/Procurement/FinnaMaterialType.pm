@@ -2,6 +2,7 @@
 package Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::FinnaMaterialType;
 
 use strict;
+use utf8;
 
 use vars qw(@ISA @EXPORT);
 

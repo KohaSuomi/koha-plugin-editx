@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use Modern::Perl;
+use utf8;
 use Try::Tiny;
 use Data::Dumper;
 use Koha::Database;
