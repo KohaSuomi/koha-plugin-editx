@@ -6,117 +6,75 @@ use Test::More;
 use Test::MockModule;
 use FindBin qw($Bin);
 use File::Spec;
-use Koha::Plugins;
+use File::Temp qw(tempdir);
+use File::Slurp qw(write_file);
 
+use Koha::Plugins;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 
-my @archived_files;
-my @failed_files;
-my @processed_orders;
-my @error_log_calls;
-my @validated_files;
-my @logger_errors;
+my $tmp_dir     = tempdir(CLEANUP => 1);
+my $archive_dir = tempdir(CLEANUP => 1);
 
-my %mock_orders;
-my %should_process_fail;
+my $test_xml = '<?xml version="1.0"?>
+<LibraryShipNotice>
+  <Header>
+    <ShipNoticeNumber>SN-12345</ShipNoticeNumber>
+    <IssueDateTime>2024-01-15T10:00:00</IssueDateTime>
+    <BuyerParty>
+      <PartyID>
+        <PartyIDType>VendorAssignedID</PartyIDType>
+        <Identifier>TESTVENDOR</Identifier>
+      </PartyID>
+    </BuyerParty>
+  </Header>
+</LibraryShipNotice>';
+
+my @create_calls;
+my @error_log_calls;
+my @log_calls;
+my $mock_find_vendor = 'TEST_VENDOR_ID';
+my $mock_dup_exists  = 0;
 
 my $mock_config = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config');
-$mock_config->redefine('new', sub {
-    return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config';
-});
+$mock_config->redefine('new', sub { bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config' });
 $mock_config->redefine('getSettings', sub {
     return {
         settings => {
-            log_directory     => '/tmp',
-            import_load_path  => '/tmp/editx/load',
-            import_tmp_path   => '/tmp/editx/tmp',
-            import_archive_path => '/tmp/editx/archive',
-            import_failed_path  => '/tmp/editx/failed',
+            log_directory        => '/tmp',
+            import_tmp_path      => $tmp_dir,
+            import_archive_path  => $archive_dir,
         }
     };
 });
 
-my $mock_file = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::File');
-$mock_file->redefine('new', sub {
-    return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::File';
-});
-$mock_file->redefine('fillLoadFolder', sub { return 1; });
-$mock_file->redefine('archiveFile', sub {
-    my ($self, $filename) = @_;
-    push @archived_files, $filename;
-    return 1;
-});
-$mock_file->redefine('moveToFailFolder', sub {
-    my ($self, $filename) = @_;
-    push @failed_files, $filename;
-    return 1;
-});
-
 my $mock_logger = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger');
-$mock_logger->redefine('new', sub {
-    return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger';
-});
-$mock_logger->redefine('log', sub { return 1; });
-$mock_logger->redefine('logError', sub {
-    my ($self, $message) = @_;
-    push @logger_errors, $message;
-    return 1;
-});
+$mock_logger->redefine('new',   sub { bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger' });
+$mock_logger->redefine('log',       sub { my ($self, $msg) = @_; push @log_calls, $msg; return 1; });
+$mock_logger->redefine('logError',  sub { my ($self, $msg) = @_; push @log_calls, $msg; return 1; });
 
-my $mock_factory = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice');
-$mock_factory->redefine('new', sub {
-    return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice';
+my $mock_edi = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage');
+$mock_edi->redefine('new',              sub { bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage' });
+$mock_edi->redefine('constructFilename', sub { return 'SN-12345_2024-01-15T10:00:00' });
+$mock_edi->redefine('findVendorId',      sub { return $mock_find_vendor });
+$mock_edi->redefine('duplicateExists',   sub { return $mock_dup_exists });
+$mock_edi->redefine('create', sub {
+    my ($self, $raw, $filename, $vendor_id) = @_;
+    push @create_calls, { raw => $raw, filename => $filename, vendor_id => $vendor_id };
 });
-
-my $mock_parser = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser');
-$mock_parser->redefine('new', sub {
-    return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser';
-});
-$mock_parser->redefine('parseFiles', sub {
-    return %mock_orders;
-});
-
-my $mock_validator = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator');
-$mock_validator->redefine('validateEditx', sub {
-    my ($filename) = @_;
-    push @validated_files, $filename;
-    return 1;
-});
-
-my $mock_orderprocessor = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor');
-$mock_orderprocessor->redefine('new', sub {
-    return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor';
-});
-$mock_orderprocessor->redefine('process', sub {
-    my ($self, $order) = @_;
-    my $order_id = ref($order) eq 'HASH' ? $order->{id} : $order;
-    push @processed_orders, $order_id;
-    die "Simulated process failure for $order_id" if $should_process_fail{$order_id};
-    return 1;
-});
-
-my $mock_edimessage = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage');
-$mock_edimessage->redefine('new', sub {
-    return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage';
-});
-$mock_edimessage->redefine('addToErrorLog', sub {
-    my ($self, $filename, $error) = @_;
-    push @error_log_calls, { filename => $filename, error => $error };
-    return 1;
+$mock_edi->redefine('addToErrorLog', sub {
+    my ($self, $identifier, $error) = @_;
+    push @error_log_calls, { identifier => $identifier, error => $error };
 });
 
 sub run_cron {
     my (%params) = @_;
 
-    @archived_files = ();
-    @failed_files = ();
-    @processed_orders = ();
-    @error_log_calls = ();
-    @validated_files = ();
-    @logger_errors = ();
+    @create_calls     = ();
+    @error_log_calls  = ();
+    @log_calls        = ();
 
-    %mock_orders = %{ $params{orders} || {} };
-    %should_process_fail = %{ $params{process_fail_for} || {} };
+    $mock_find_vendor = exists $params{vendor_id} ? $params{vendor_id} : 'TEST_VENDOR_ID';
+    $mock_dup_exists  = exists $params{duplicate_exists} ? $params{duplicate_exists} : 0;
 
     my $script = File::Spec->catfile($Bin, '..', 'cronjobs', 'runEditXImport.pl');
 
@@ -128,42 +86,58 @@ sub run_cron {
     return ($ok, $@);
 }
 
-subtest 'archives successfully processed file' => sub {
-    my ($ok, $error) = run_cron(
-        orders => {
-            'ok1.xml' => { id => 'ok1' },
-        },
-        process_fail_for => {},
-    );
+sub clean_dirs {
+    unlink glob "$tmp_dir/*.xml";
+    unlink glob "$archive_dir/*.xml";
+}
 
-    ok($ok, 'cron script executed without dying');
+subtest 'saves file and archives it' => sub {
+    clean_dirs();
+    write_file("$tmp_dir/test1.xml", $test_xml);
+
+    my ($ok, $error) = run_cron();
+
+    ok($ok, 'script executed without dying');
     is($error, '', 'no eval error from script');
-    is_deeply(\@validated_files, ['ok1.xml'], 'file was validated');
-    is_deeply(\@processed_orders, ['ok1'], 'order was processed');
-    is_deeply(\@archived_files, ['ok1.xml'], 'file was archived');
-    is(scalar @failed_files, 0, 'no files moved to fail folder');
-    is(scalar @error_log_calls, 0, 'no error log entries created');
+    is(scalar @create_calls, 1, 'create was called once');
+    is($create_calls[0]->{filename}, 'SN-12345_2024-01-15T10:00:00', 'filename matches constructed value');
+    is($create_calls[0]->{vendor_id}, 'TEST_VENDOR_ID', 'vendor_id passed to create');
+    ok(!-f "$tmp_dir/test1.xml", 'file was moved out of tmp');
+    ok(-f "$archive_dir/test1.xml", 'file was moved to archive');
+    is(scalar @error_log_calls, 0, 'no error log entries');
 };
 
-subtest 'moves file to fail and logs error on processing failure' => sub {
-    my ($ok, $error) = run_cron(
-        orders => {
-            'bad1.xml' => { id => 'bad1' },
-        },
-        process_fail_for => {
-            bad1 => 1,
-        },
-    );
+subtest 'skips duplicate file' => sub {
+    clean_dirs();
+    write_file("$tmp_dir/test2.xml", $test_xml);
 
-    ok($ok, 'cron script handled failure without dying');
+    my ($ok, $error) = run_cron(duplicate_exists => 1);
+
+    ok($ok, 'script executed without dying');
+    is(scalar @create_calls, 0, 'create was not called for duplicate');
+    ok(-f "$tmp_dir/test2.xml", 'file remains in tmp for duplicates');
+    is(scalar @error_log_calls, 0, 'no errors logged for duplicate');
+};
+
+subtest 'logs error when vendor not found' => sub {
+    clean_dirs();
+    write_file("$tmp_dir/test3.xml", $test_xml);
+
+    my ($ok, $error) = run_cron(vendor_id => undef);
+
+    ok($ok, 'script handled missing vendor without dying');
+    is(scalar @create_calls, 0, 'create was not called');
+    is(scalar @error_log_calls, 1, 'error was logged');
+    like($error_log_calls[0]->{error}, qr/Could not find matching vendor/, 'error mentions missing vendor');
+};
+
+subtest 'handles empty tmp directory' => sub {
+    clean_dirs();
+    my ($ok, $error) = run_cron();
+
+    ok($ok, 'script executed without dying on empty dir');
     is($error, '', 'no eval error from script');
-    is_deeply(\@validated_files, ['bad1.xml'], 'file was validated before processing');
-    is_deeply(\@processed_orders, ['bad1'], 'order processing was attempted');
-    is_deeply(\@failed_files, ['bad1.xml'], 'file moved to fail folder');
-    is(scalar @archived_files, 0, 'file was not archived');
-    is(scalar @error_log_calls, 1, 'error was logged to edifact_errors');
-    is($error_log_calls[0]->{filename}, 'bad1.xml', 'error log call uses filename');
-    like($error_log_calls[0]->{error}, qr/Simulated process failure/, 'error log contains processing failure reason');
+    is(scalar @create_calls, 0, 'create was not called');
 };
 
 done_testing();
