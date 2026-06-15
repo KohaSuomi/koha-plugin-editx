@@ -14,6 +14,7 @@ use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 
 my $tmp_dir     = tempdir(CLEANUP => 1);
 my $archive_dir = tempdir(CLEANUP => 1);
+my $failed_dir  = tempdir(CLEANUP => 1);
 
 my $test_xml = '<?xml version="1.0"?>
 <LibraryShipNotice>
@@ -43,6 +44,7 @@ $mock_config->redefine('getSettings', sub {
             log_directory        => '/tmp',
             import_tmp_path      => $tmp_dir,
             import_archive_path  => $archive_dir,
+            import_failed_path   => $failed_dir,
         }
     };
 });
@@ -89,6 +91,7 @@ sub run_cron {
 sub clean_dirs {
     unlink glob "$tmp_dir/*.xml";
     unlink glob "$archive_dir/*.xml";
+    unlink glob "$failed_dir/*.xml";
 }
 
 subtest 'saves file and archives it' => sub {
@@ -115,8 +118,22 @@ subtest 'skips duplicate file' => sub {
 
     ok($ok, 'script executed without dying');
     is(scalar @create_calls, 0, 'create was not called for duplicate');
-    ok(-f "$tmp_dir/test2.xml", 'file remains in tmp for duplicates');
+    ok(!-f "$tmp_dir/test2.xml", 'file was moved out of tmp');
+    ok(-f "$failed_dir/test2.xml", 'file was moved to failed');
     is(scalar @error_log_calls, 0, 'no errors logged for duplicate');
+};
+
+subtest 'skips empty file' => sub {
+    clean_dirs();
+    write_file("$tmp_dir/empty.xml", '');
+
+    my ($ok, $error) = run_cron();
+
+    ok($ok, 'script executed without dying');
+    is(scalar @create_calls, 0, 'create was not called for empty file');
+    ok(!-f "$tmp_dir/empty.xml", 'empty file was moved out of tmp');
+    ok(-f "$failed_dir/empty.xml", 'empty file was moved to failed');
+    is(scalar @error_log_calls, 0, 'no errors logged for empty file');
 };
 
 subtest 'logs error when vendor not found' => sub {
@@ -129,6 +146,7 @@ subtest 'logs error when vendor not found' => sub {
     is(scalar @create_calls, 0, 'create was not called');
     is(scalar @error_log_calls, 1, 'error was logged');
     like($error_log_calls[0]->{error}, qr/Could not find matching vendor/, 'error mentions missing vendor');
+    ok(-f "$failed_dir/test3.xml", 'file was moved to failed');
 };
 
 subtest 'handles empty tmp directory' => sub {
