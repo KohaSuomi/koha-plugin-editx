@@ -14,7 +14,7 @@ $(document).ready(function () {
       $actions.each(function () {
         var messageId = $(this).find('input[name="message_id"]').val();
         if (messageId) {
-          $(this).append(
+          $(this).prepend(
             '<button type="button" class="editx-btn btn btn-sm btn-secondary" style="margin-left:5px;" onclick="runEditxMessage(' + messageId + ')\">' +
             {
               en: "Re-run",
