@@ -62,15 +62,6 @@ sub new {
     return $self;
 }
 
-sub admin {
-    my ( $self, $args ) = @_;
-    my $cgi = $self->{'cgi'}; 
-    my $template = $self->get_template( { file => 'admin_editx.tt' } );
-    print $cgi->header(-charset    => 'utf-8');
-    print $template->output();
-}
-
-
 ## This is the 'install' method. Any database tables or other setup that should
 ## be done when the plugin if first installed should be executed in this method.
 ## The installation method should always return true if the installation succeeded
@@ -195,25 +186,6 @@ sub api_namespace {
     return 'kohasuomi';
 }
 
-
-sub create_editx_contents_table {
-    my ( $self ) = @_;
-
-    my $dbh = C4::Context->dbh;
-    my $editxTable = $self->get_qualified_table_name('contents');
-
-    $dbh->do("CREATE TABLE IF NOT EXISTS `$editxTable` (
-    `id` int NOT NULL AUTO_INCREMENT,
-    `name` varchar(255) NOT NULL,
-    `content` longtext NOT NULL,
-    `status` ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
-    `statusmessage` varchar(255) DEFAULT NULL,
-    `transfer_time` datetime DEFAULT NULL,
-    `timestamp` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ");
-}
 
 sub drop_editx_contents_table {
     my ( $self ) = @_;

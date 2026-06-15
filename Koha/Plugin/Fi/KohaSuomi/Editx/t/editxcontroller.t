@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Test::More tests => 10;
+use Test::More tests => 9;
 use LWP::UserAgent;
 use HTTP::Request;
 use Koha::Database;
@@ -9,6 +9,7 @@ use Koha::Libraries;
 use Koha::AuthorisedValues;
 use Koha::Acquisition::Budget;
 use Koha::Acquisition::Budgets;
+use DateTime;
 use Test::Mojo;
 use t::lib::TestBuilder;
 use t::lib::Mocks;
@@ -150,13 +151,13 @@ subtest 'POST invalid XML file' => sub {
 };
 
 subtest 'PUT update Editx content' => sub {
-    plan tests => 14;
+    plan tests => 8;
     $schema->storage->txn_begin;
     setup_editx_fixture_data();
     
     my $patron = $builder->build_object({
         class => 'Koha::Patrons',
-        value => { flags => 0 }    #no permissions, will add editx permissions separately
+        value => { flags => 0 }
     });
     $builder->build(
         {
@@ -172,34 +173,15 @@ subtest 'PUT update Editx content' => sub {
     $patron->set_password({ password => $password, skip_validation => 1 });
     my $userid = $patron->userid;
     
-    # Create a test Editx content first
-    my $xml_body = generate_shipnotice_xml();
-    
-    # Create content
-    my $response = $t->post_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx" => { "Content-Type" => "application/xml" } => $xml_body)
-        ->status_is(201);
-
-    my $invalid_list_response = $t->get_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx")
-        ->status_is(403);
-    
-    # Add permissions for plugins to test that both acquisition and plugins permissions are required for update
-    $builder->build(
-        {
-            source => 'UserPermission',
-            value  => {
-                borrowernumber => $patron->borrowernumber,
-                module_bit     => 19,    # Plugins
-                code           => 'admin',
-            },
-        }
-    );
-    
-    # Get the created content ID by listing all contents
-    my $list_response = $t->get_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx")
-        ->status_is(200);
-
-    my $contents = $list_response->tx->res->json;
-    my $content_id = $contents->[0]->{id};
+    # Create a test EdifactMessage directly via the schema
+    my $message = $schema->resultset('EdifactMessage')->create({
+        message_type => 'EDItX',
+        transfer_date => DateTime->now,
+        raw_msg => '<xml></xml>',
+        filename => 'TEST_SHIP_NOTICE',
+        status => 'NEW',
+    });
+    my $content_id = $message->id;
     
     # Test update with valid status
     $t->put_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx/$content_id" => json => { status => 'OK' })
@@ -218,60 +200,7 @@ subtest 'PUT update Editx content' => sub {
     $schema->storage->txn_rollback;
 };
 
-subtest 'GET all Editx contents' => sub {
-    plan tests => 8;
-    $schema->storage->txn_begin;
-    setup_editx_fixture_data();
-    
-    my $patron = $builder->build_object({
-        class => 'Koha::Patrons',
-        value => { flags => 0 }    #no permissions, add granular permissions below
-    });
-    $builder->build(
-        {
-            source => 'UserPermission',
-            value  => {
-                borrowernumber => $patron->borrowernumber,
-                module_bit     => 11,    # Acquisition
-                code           => 'edi_manage',
-            },
-        }
-    );
-    $builder->build(
-        {
-            source => 'UserPermission',
-            value  => {
-                borrowernumber => $patron->borrowernumber,
-                module_bit     => 19,    # Plugins
-                code           => 'admin',
-            },
-        }
-    );
-    my $password = 'thePassword123';
-    $patron->set_password({ password => $password, skip_validation => 1 });
-    my $userid = $patron->userid;
-    
-    # Create a test Editx content
-    my $xml_body = generate_shipnotice_xml();
-    
-    $t->post_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx" => { "Content-Type" => "application/xml" } => $xml_body)
-        ->status_is(201);
-    
-    # Retrieve all contents
-    my $list_response = $t->get_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx")
-        ->status_is(200);
-    
-    my $contents = $list_response->tx->res->json;
-    ok(scalar(@$contents) > 0, 'At least one content was returned');
 
-    my $list_offset_response = $t->get_ok("//$userid:$password@/api/v1/contrib/kohasuomi/editx?offset=0&limit=1")
-        ->status_is(200);
-    my $contents_offset = $list_offset_response->tx->res->json;
-
-    is(scalar(@$contents_offset), 1, 'Limit parameter works correctly');
-    
-    $schema->storage->txn_rollback;
-};
 
 subtest 'POST XML with missing required fields' => sub {
     plan tests => 3;

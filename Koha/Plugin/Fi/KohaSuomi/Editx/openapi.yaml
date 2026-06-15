@@ -49,41 +49,6 @@
     x-koha-authorization:
       permissions:
         acquisition: edi_manage
-  get:
-    x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#list"
-    operationId: listEditxContents
-    tags:
-      - editx
-    produces:
-      - application/json
-    parameters:
-      - name: offset
-        in: query
-        required: false
-        type: integer
-        description: Number of items to skip before starting to collect the result set
-      - name: limit
-        in: query
-        required: false
-        type: integer
-        description: Maximum number of items to return
-    responses:
-      "200":
-        description: A list of Editx messages
-        schema:
-          type: array
-      "500":
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    x-koha-authorization:
-      permissions:
-        acquisition: edi_manage
-        plugins: admin
 "/editx/{id}":
   put:
     x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#update"
@@ -150,46 +115,3 @@
     x-koha-authorization:
       permissions:
         acquisition: edi_manage
-        plugins: admin
-  delete:
-    x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#delete"
-    operationId: deleteEditx
-    tags:
-      - editx
-    parameters:
-      - name: id
-        in: path
-        required: true
-        type: integer
-        description: ID of the Editx message to delete
-    produces:
-      - application/json
-    responses:
-      "200":
-        description: Successfully deleted the Editx message
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              description: Success message
-      "404":
-        description: Not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Editx message not found
-      "500":
-        description: Internal server error
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              description: Error message
-    x-koha-authorization:
-      permissions:
-        acquisition: edi_manage
-        plugins: admin

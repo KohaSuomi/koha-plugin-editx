@@ -2,8 +2,6 @@ package Koha::Plugin::Fi::KohaSuomi::Editx::Controllers::EditxController;
 use Modern::Perl;
 use Mojo::Base 'Mojolicious::Controller';
 use Try::Tiny;
-use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::EditxHandler;
-use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage;
 use C4::Context;
@@ -40,32 +38,6 @@ sub add {
     };
 }
 
-
-sub list {
-    ## In this method we will handle the retrieval of all Editx contents
-    ## We will fetch all contents from the database and return them with pagination
-    my $c = shift->openapi->valid_input or return;
-    my $logger = Koha::Logger->get({ interface => 'api' });
-
-    try {
-        my $offset = $c->validation->param('offset') // 0;
-        my $limit = $c->validation->param('limit') // 100;
-        my $edi_message = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage->new();
-        my $contents = $edi_message->list($offset, $limit);
-        my $total_count = $edi_message->total_count();
-        
-        $c->res->headers->header('X-Total-Count' => $total_count);
-
-        return $c->render(status => 200, openapi => $contents); 
-    }
-    catch {
-        my $error = $_;
-        $logger->error("Failed to retrieve Editx contents: $error");
-        return $c->render(status => 500, openapi => {error => "Something went wrong, check logs for details"});
-    };
-}
-
-
 sub update {
     ## In this method we will handle the update of Editx contents
     ## We will update the status of a specific content based on the ID provided
@@ -92,27 +64,4 @@ sub update {
     }
 }
 
-sub delete {
-    ## In this method we will handle the deletion of Editx contents
-    ## We will delete a specific content based on the ID provided
-    my $c = shift->openapi->valid_input or return;
-    my $logger = Koha::Logger->get({ interface => 'api' });
-    my $id = $c->validation->param('id');
-    
-    try {
-        my $edi_message = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage->new();
-        my $result = $edi_message->delete($id);
-
-        if ($result) {
-            return $c->render(status => 200, openapi => {message => "Content deleted successfully"});
-        } else {
-            return $c->render(status => 404, openapi => {error => "Content not found"});
-        }
-    }
-    catch {
-        my $error = $_;
-        $logger->error("Failed to delete content ID $id: $error");
-        return $c->render(status => 500, openapi => {error => "Something went wrong, check logs for details"});
-    }
-}
 1;

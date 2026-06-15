@@ -10,7 +10,6 @@ use Koha::Plugins;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger;
-use Koha::Plugin::Fi::KohaSuomi::Editx::Modules::Database;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage;
