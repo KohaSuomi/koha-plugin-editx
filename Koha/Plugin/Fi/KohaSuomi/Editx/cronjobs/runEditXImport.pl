@@ -38,7 +38,7 @@ foreach my $file (@files) {
     my $content = read_file("$tmpPath$file");
     my $xml = XML::LibXML->new()->parse_string($content);
     my $filename = $edi_message->constructFilename($xml, undef);
-
+    print "Processing file $file, constructed filename: $filename\n";
     if ($edi_message->duplicateExists($filename)) {
         $logger->log("File $file already exists as $filename in DB, skipping");
         next;
