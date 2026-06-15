@@ -3,7 +3,6 @@ package Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage;
 
 use C4::Context;
 use Data::Dumper;
-use File::Basename;
 use XML::LibXML;
 
 my $singleton;
@@ -11,17 +10,6 @@ my $singleton;
 sub new {
     my $class = shift;
     $singleton ||= bless {}, $class;
-}
-
-sub add {
-    my $self = shift;
-    my $messagefile = $_[0];
-    my $raw_message = $_[1];
-    my $status = $_[2] // 'NEW';
-    my $dbh = C4::Context->dbh;
-    $dbh->do("DELETE FROM edifact_messages WHERE filename='$messagefile'");
-    my $sth = $dbh->prepare("INSERT INTO edifact_messages (message_type, transfer_date, raw_msg, filename, status) VALUES ('EDItX', NOW(), ?, ?, ?)");
-    $sth->execute($raw_message, $messagefile, $status);
 }
 
 sub create {
@@ -66,74 +54,6 @@ sub claimForProcessing {
 
     return $sth->rows;
 }
-
-sub delete {
-    my $self = shift;
-    my $identifier = $_[0];
-    my $dbh = C4::Context->dbh;
-
-    # Prefer id-based deletes.
-    my $sth = $dbh->prepare("DELETE FROM edifact_messages WHERE id=?");
-    $sth->execute($identifier);
-    my $rows = $sth->rows;
-
-    # Backward compatibility: older callers may pass filename.
-    if ($rows == 0) {
-        my $fallback_sth = $dbh->prepare("DELETE FROM edifact_messages WHERE filename=?");
-        $fallback_sth->execute($identifier);
-        $rows = $fallback_sth->rows;
-    }
-
-    return $rows;
-}
-
-sub list {
-    my $self = shift;
-    my $offset = $_[0];
-    my $limit = $_[1];
-    my $dbh = C4::Context->dbh;
-    my $sth;
-
-    if (defined $limit && $limit =~ /^\d+$/) {
-        $offset = 0 unless defined $offset && $offset =~ /^\d+$/;
-        $sth = $dbh->prepare("SELECT em.id as id, em.message_type, em.transfer_date, em.filename, em.status, ee.details FROM edifact_messages em LEFT JOIN edifact_errors ee ON ee.id = (SELECT ee2.id FROM edifact_errors ee2 WHERE ee2.message_id = em.id ORDER BY ee2.date DESC, ee2.id DESC LIMIT 1) WHERE em.message_type='EDItX' ORDER BY em.transfer_date DESC LIMIT ? OFFSET ?");
-        $sth->execute($limit, $offset);
-    } else {
-        $sth = $dbh->prepare("SELECT em.id as id, em.message_type, em.transfer_date, em.filename, em.status, ee.details FROM edifact_messages em LEFT JOIN edifact_errors ee ON ee.id = (SELECT ee2.id FROM edifact_errors ee2 WHERE ee2.message_id = em.id ORDER BY ee2.date DESC, ee2.id DESC LIMIT 1) WHERE em.message_type='EDItX' ORDER BY em.transfer_date DESC");
-        $sth->execute();
-    }
-
-    return $sth->fetchall_arrayref({});
-}
-
-sub total_count {
-    my $self = shift;
-    my $dbh = C4::Context->dbh;
-    my $sth = $dbh->prepare("SELECT COUNT(*) FROM edifact_messages where message_type='EDItX'");
-    $sth->execute();
-    my ($total) = $sth->fetchrow_array();
-    return $total;
-}
-
-sub findBookseller {
-    my $self = shift;
-    my $messagefile = $_[0];
-
-    my $qualifier=91;
-    my $san = XML::LibXML->new()->parse_file($messagefile)->findnodes('/LibraryShipNotice/Header/BuyerParty/PartyID[PartyIDType/text() = "VendorAssignedID"]/Identifier')->string_value();
-    if (!$san) {
-       $qualifier=92;
-       $san = XML::LibXML->new()->parse_file($messagefile)->findnodes('/LibraryShipNotice/Header/SellerParty/PartyID[PartyIDType/text() = "BuyerAssignedID"]/Identifier')->string_value();
-    }
-
-    my $dbh = C4::Context->dbh;
-    my $sth = $dbh->prepare("SELECT vendor_id FROM vendor_edi_accounts WHERE san = ? AND id_code_qualifier=? AND transport='FILE' AND orders_enabled='1'");
-    $sth->execute($san, $qualifier);
-    my $vendor_id = $sth->fetchrow_array();
-    my $basename = basename($messagefile);
-    $dbh->do("UPDATE edifact_messages SET vendor_id='$vendor_id' WHERE filename='$basename'") if $vendor_id;
-}
-
 
 sub newEdiMessage {
     my $self = shift;
