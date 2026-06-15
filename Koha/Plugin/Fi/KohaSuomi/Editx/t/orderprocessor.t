@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use utf8;
-use Test::More tests => 13;
+use Test::More tests => 14;
 use Test::MockObject;
 use Test::MockModule;
 use FindBin qw($Bin);
@@ -164,7 +164,7 @@ subtest 'Missing configurations' => sub {
 
     $mock_authoriser = '';
     
-    $order_processor->setConfig($mock_config); # Update the processor's config with the new authoriser value
+    $order_processor->setConfig($mock_config);
     my $order_object = $parser->parseDb(order_mock(
         {
             ShipNoticeNumber => '12345',
@@ -175,16 +175,14 @@ subtest 'Missing configurations' => sub {
         }
     ));
 
-    order_processor_helper($order_object);
-    
-    is($error_messages[0], "Authoriser not set.", 'logs missing authoriser error');
+    my $error = order_processor_helper($order_object);
+    is($error, "Authoriser is not configured in plugin settings.", 'dies with missing authoriser');
 
-    $mock_authoriser = $authoriser->borrowernumber; # Reset to valid authoriser for next test
-    $order_processor->setConfig($mock_config); # Update the processor's config with the reset authoriser value
+    $mock_authoriser = $authoriser->borrowernumber;
+    $order_processor->setConfig($mock_config);
 
-    order_processor_helper($order_object);
-
-    is(@error_messages, 0, 'No error messages were captured after setting authoriser');
+    $error = order_processor_helper($order_object);
+    is($error, 1, 'no error after setting authoriser');
 
     $order_object = $parser->parseDb(order_mock(
         {
@@ -196,18 +194,16 @@ subtest 'Missing configurations' => sub {
         }
     ));
 
-    order_processor_helper($order_object);
-    is($error_messages[0], "Shipnotice number does not match basket name, or basket name not set.", 'logs shipnotice number and basket name mismatch error');
+    $error = order_processor_helper($order_object);
+    is($error, "Basket name could not be determined from shipment notice.", 'dies with missing basket name');
 
-    # Test allowed locations missing
     $mock_location = '';
-    $order_processor->setConfig($mock_config); # Update the processor's config with the new allowed locations value
-    order_processor_helper($order_object);
-    is($error_messages[0], "Allowed locations are not set.", 'logs missing allowed locations error');
+    $order_processor->setConfig($mock_config);
+    $error = order_processor_helper($order_object);
+    is($error, "Allowed locations are not configured in plugin settings.", 'dies with missing allowed locations');
 
-    # Reset allowed locations for next tests
     $mock_location = 'AIK';
-    $order_processor->setConfig($mock_config); # Update the processor's config with the reset allowed locations value
+    $order_processor->setConfig($mock_config);
 
 };
 
@@ -303,16 +299,60 @@ subtest "Invalid location" => sub {
         }
     ));
     @error_messages = ();
-    my $die_message = '';
     eval {
         $order_processor->process($order_object);
         1;
     } or do {
-        $die_message = $@;
     };
-    like($error_messages[0], qr/Required parameter: '\$destinationlocation' was not set or it was empty\./, 'logs missing destination location error');
-    like($error_messages[1], qr/Required parameter: '\$collectioncode' was not set or it was empty\./, 'logs missing collection code error');
+    ok(grep(/destinationlocation/, @error_messages), 'logs missing destination location error');
+    ok(grep(/collectioncode/, @error_messages), 'logs missing collection code error');
 
+};
+
+subtest 'Error messages reference EDItX XML element paths' => sub {
+    plan tests => 4;
+
+    # Create orders with unique ISBNs so automatch does not find existing biblios
+    @error_messages = ();
+    my $order_object = $parser->parseDb(order_mock(
+        {
+            ShipNoticeNumber => '12345',
+            ISBN  => '978-951-0-99999-0',
+            EAN   => '9789510999990',
+            ProductForm => 'BK',
+            Title => '',
+            NameLine => 'BTJ Finland Oy',
+            DeliverToLocation => 'OUPKAIK2026',
+            DestinationLocation => 'OUPKAIK2026',
+            FundNumber => 'OUPKAIK2026'
+        }
+    ));
+
+    my $error = order_processor_helper($order_object);
+    like($error, qr/Missing from EDItX message/, 'title: error references EDItX message');
+    like($error, qr/ItemDescription\/Title/, 'title: error contains XML path for Title');
+
+    # Unknown NameLine → no vendor class matches, base LibraryShipNotice used.
+    # Base ItemDetail::getNotes() returns '' → triggers notes validation with
+    # Header/SellerParty/PartyName/NameLine path.
+    @error_messages = ();
+    $order_object = $parser->parseDb(order_mock(
+        {
+            ShipNoticeNumber => '12345',
+            ISBN  => '978-951-0-99999-1',
+            EAN   => '9789510999991',
+            ProductForm => 'BK',
+            Title => 'Test Title',
+            NameLine => '',
+            DeliverToLocation => 'OUPKAIK2026',
+            DestinationLocation => 'OUPKAIK2026',
+            FundNumber => 'OUPKAIK2026'
+        }
+    ));
+
+    $error = order_processor_helper($order_object);
+    like($error, qr/Missing from EDItX message/, 'nameline: error references EDItX message');
+    like($error, qr/Header\/SellerParty\/PartyName\/NameLine/, 'nameline: error contains XML path for NameLine');
 };
 
 subtest 'UTF-8 MARC from parseDb is preserved' => sub {
@@ -435,7 +475,7 @@ sub order_mock {
                 <Identifier>FI-BTJ</Identifier>
             </PartyID>
             <PartyName>
-                <NameLine>BTJ Finland Oy</NameLine>
+                <NameLine>'.($params->{NameLine} // 'BTJ Finland Oy').'</NameLine>
             </PartyName>
         </SellerParty>
     </Header>
@@ -443,11 +483,11 @@ sub order_mock {
         <LineNumber>1</LineNumber>
         <ProductID>
             <ProductIDType>EAN13</ProductIDType>
-            <Identifier>9789510506103</Identifier>
+            <Identifier>'.($params->{EAN} // '9789510506103').'</Identifier>
         </ProductID>
         <ProductID>
             <ProductIDType>ISBN</ProductIDType>
-            <Identifier>978-951-0-50610-3</Identifier>
+            <Identifier>'.($params->{ISBN} // '978-951-0-50610-3').'</Identifier>
         </ProductID>
         <ItemDescription>
             <ProductForm>'.$params->{ProductForm}.'</ProductForm>
@@ -523,13 +563,13 @@ sub order_mock {
 &lt;collection xmlns=&quot;http://www.loc.gov/MARC21/slim&quot;&gt;
  &lt;record&gt;
   &lt;leader&gt;00962nam a22002898a 4500&lt;/leader&gt;
-  &lt;controlfield tag=&quot;001&quot;&gt;978-951-0-50610-3&lt;/controlfield&gt;
+   &lt;controlfield tag=&quot;001&quot;&gt;'.($params->{ISBN} // '978-951-0-50610-3').'&lt;/controlfield&gt;
   &lt;controlfield tag=&quot;003&quot;&gt;FI-Woima&lt;/controlfield&gt;
   &lt;controlfield tag=&quot;005&quot;&gt;20240326101401.0&lt;/controlfield&gt;
   &lt;controlfield tag=&quot;008&quot;&gt;240315s2024    fi                  fin&lt;/controlfield&gt;
   &lt;datafield tag=&quot;020&quot; ind1=&quot; &quot; ind2=&quot; &quot;&gt;
-   &lt;subfield code=&quot;a&quot;&gt;978-951-0-50610-3&lt;/subfield&gt;
-   &lt;subfield code=&quot;q&quot;&gt;kovakantinen&lt;/subfield&gt;
+    &lt;subfield code=&quot;a&quot;&gt;'.($params->{ISBN} // '978-951-0-50610-3').'&lt;/subfield&gt;
+    &lt;subfield code=&quot;q&quot;&gt;kovakantinen&lt;/subfield&gt;
   &lt;/datafield&gt;
   &lt;datafield tag=&quot;035&quot; ind1=&quot; &quot; ind2=&quot; &quot;&gt;
    &lt;subfield code=&quot;a&quot;&gt;(FI-BTJ)7459348&lt;/subfield&gt;
@@ -618,12 +658,14 @@ sub order_processor_helper {
     my $object = shift;
     @log_messages = ();
     @error_messages = ();
-    my $die_message = '';
     eval {
         $order_processor->process($object);
         1;
     } or do {
         my $error = $@ || 'Unknown error';
+        chomp $error;
+        $error =~ s/ at .+? line \d+\.?$//;
         return $error;
     };
+    return 1;
 }
