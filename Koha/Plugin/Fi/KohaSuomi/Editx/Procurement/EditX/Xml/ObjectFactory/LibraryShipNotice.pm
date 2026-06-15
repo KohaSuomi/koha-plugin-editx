@@ -12,6 +12,7 @@ sub BUILD {
     my $self = shift;
     $self->setSchemaName('EDItX_LibraryShipNotice_V1.0.xsd');
     $self->setObjectName('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice');
+    $self->setDefaultObjectName($self->getObjectName());
 
     $self->addObjectCandidate('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::Booky');
     $self->addObjectCandidate('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::Btj');
