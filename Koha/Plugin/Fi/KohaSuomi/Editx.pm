@@ -106,6 +106,12 @@ sub uninstall() {
     return 1;
 }
 
+sub intranet_js {
+    my ( $self ) = @_;
+    my $pluginpath = $self->get_plugin_http_path();
+    return '<script src="' . $pluginpath . '/js/editxButton.js"></script>';
+}
+
 sub configure {
     my ( $self, $args ) = @_;
     my $cgi = $self->{'cgi'};
