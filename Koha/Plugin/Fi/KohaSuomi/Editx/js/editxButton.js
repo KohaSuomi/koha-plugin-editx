@@ -7,24 +7,30 @@ $(document).ready(function () {
     htmlLang = 'en';
   }
 
+  function addButtons() {
+    $("td.actions").each(function () {
+      if ($(this).find(".editx-btn").length) return;
+      var messageId = $(this).find('input[name="message_id"]').val();
+      if (messageId) {
+        $(this).prepend(
+          '<button type="button" class="editx-btn btn btn-sm btn-primary" style="margin-left:5px;" onclick="runEditxMessage(' + messageId + ')\">' +
+          {
+            en: "Rerun",
+            fi: "Aja uudelleen",
+            sv: "Kör igen"
+          }[htmlLang] +
+          '</button>'
+        );
+      }
+    });
+  }
+
+  $("#edi_msgs").on("draw.dt", addButtons);
+
   var checkExist = setInterval(function () {
-    var $actions = $("td.actions");
-    if ($actions.length > 0 && !$actions.first().find(".editx-btn").length) {
+    if ($("td.actions").length > 0) {
       clearInterval(checkExist);
-      $actions.each(function () {
-        var messageId = $(this).find('input[name="message_id"]').val();
-        if (messageId) {
-          $(this).prepend(
-            '<button type="button" class="editx-btn btn btn-sm btn-secondary" style="margin-left:5px;" onclick="runEditxMessage(' + messageId + ')\">' +
-            {
-              en: "Re-run",
-              fi: "Aja uudelleen",
-              sv: "Kör igen"
-            }[htmlLang] +
-            '</button>'
-          );
-        }
-      });
+      addButtons();
     }
   }, 100);
 });
@@ -38,13 +44,7 @@ function runEditxMessage(messageId) {
   if (!['en', 'fi', 'sv'].includes(htmlLang)) {
     htmlLang = 'en';
   }
-
-  button.text({
-    en: "Running...",
-    fi: "Ajetaan...",
-    sv: "Kör..."
-  }[htmlLang]);
-
+  
   $.ajax({
     url: "/api/v1/contrib/kohasuomi/editx/" + messageId,
     type: "PUT",
@@ -58,7 +58,7 @@ function runEditxMessage(messageId) {
     error: function (xhr, status, error) {
       button.attr("disabled", false);
       button.text({
-        en: "Re-run",
+        en: "Rerun",
         fi: "Aja uudelleen",
         sv: "Kör igen"
       }[htmlLang]);
