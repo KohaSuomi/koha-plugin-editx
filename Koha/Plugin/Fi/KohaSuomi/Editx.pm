@@ -55,6 +55,7 @@ sub install() {
     $self->create_map_productform();
     $self->create_aqbudgets_spend_log();
     $self->sql_insert_data();
+    $self->create_sequences_table();
     my $dbh = C4::Context->dbh;
     $dbh->do("INSERT IGNORE INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES ('Koha::Plugin::Fi::KohaSuomi::Editx', 'next_barcode', '1');");
     return 1;
@@ -306,6 +307,16 @@ sub sql_insert_data {
         ('00', '28VRK', '28VRKLN');
         ");    
     }   
+
+sub create_sequences_table {
+    my ( $self ) = @_;
+    my $dbh = C4::Context->dbh;
+    my $sequences_table = 'sequences';
+    $dbh->do("CREATE TABLE IF NOT EXISTS `sequences` (
+  `invoicenumber` bigint(20) unsigned DEFAULT NULL,
+  `item_barcode_nextval` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
 1;
 
 
