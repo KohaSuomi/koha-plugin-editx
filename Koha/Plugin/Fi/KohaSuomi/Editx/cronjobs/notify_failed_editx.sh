@@ -19,6 +19,10 @@ test -e "$config_loader" || die "No EDItX config exporter $config_loader."
 config_exports="$("$config_loader")" || die "Could not read EDItX plugin configuration."
 eval "$config_exports"
 
+failed_loader="$(dirname "$0")/get_failed_editx_messages.pl"
+test -e "$failed_loader" || die "No EDItX failed message reporter $failed_loader."
+db_failed_messages="$("$failed_loader")" || die "Could not read EDItX failed messages from database."
+
 test -n "$mailfrom" && mailfrom="-r $mailfrom"
 test -n "$mailto" || die "No one to send notifications to in EDItX plugin configuration."
 
@@ -47,7 +51,7 @@ fi
 export pending_files="$(ls -1 $tmp_path/*.xml 2> /dev/null)"
 export failed_files="$(ls -1 $failed_path/*.xml 2> /dev/null)"
 
-test -z "$pending_files" && test -z "$failed_files" && exit 0 # Exit if nothing to report
+test -z "$pending_files" && test -z "$failed_files" && test -z "$db_failed_messages" && exit 0 # Exit if nothing to report
 
 (
 
@@ -109,6 +113,14 @@ test -z "$pending_files" && test -z "$failed_files" && exit 0 # Exit if nothing 
     done
 
   fi 
+
+  if test -n "$db_failed_messages"; then
+
+    printf "\nSeuraavat EDItX sanomat ovat epäonnistuneet käsittelyssä (edifact_messages, status FAILED):\n\n"
+    printf '%s\n' "$db_failed_messages"
+    printf "\nVoit ajaa nämä uudelleen EDI-sanomat-sivun \"Aja uudelleen\" -painikkeella.\n\n"
+
+  fi
 
   printf "Katso lisätietoja EDItX rajapinnan parametroinnista ja tyypillisten virhetilanteiden korjaamisesta:\n"
   printf "https://koha-suomi.fi/dokumentaatio/editx/#43-erilaisia-virhetilanteita.\n"
