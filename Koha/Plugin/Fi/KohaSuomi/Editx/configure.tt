@@ -4,6 +4,7 @@
     [% PROCESS "$PLUGIN_DIR/i18n/default.inc" %]
 [% END %]
 [% USE KohaDates %]
+[% USE raw %]
 [% INCLUDE 'doc-head-open.inc' %]
 <title>[% T.configure_1 %][% plugin_display_version | html %]</title>
 <link rel="stylesheet" href="[% PLUGIN_PATH %]/static_files/editx.css" />
@@ -14,6 +15,8 @@
     [% INCLUDE 'prefs-admin-search.inc' %]
 [% END %]
 
+[% INCLUDE 'editx_breadcrumbs.inc' %]
+
 <div class="main container-fluid">
     <div class="row">
         <div class="col-12 col-xl-10">
@@ -21,11 +24,11 @@
                 [% INCLUDE 'messages.inc' %]
 
                 <div class="page-section editx-page-header">
-                    <div>
+                    <div class="ps-3">
                         <h1>[% T.configure_2 %][% plugin_display_version | html %]</h1>
                         <p class="help-block">[% T.configure_3 %]</p>
                     </div>
-                    <div class="editx-status-strip">
+                    <div class="editx-status-strip pe-3">
                         <div class="editx-status-item">
                             <span class="editx-status-label">[% T.configure_4 %]</span>
                             <strong>[% IF procurement_settings.import_tmp_path %][% T.configure_5 %][% ELSE %][% T.configure_6 %][% END %]</strong>

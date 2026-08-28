@@ -169,6 +169,12 @@ sub configure {
     );
 }
 
+sub template_include_paths {
+    my ($self) = @_;
+
+    return [ $self->mbf_path('includes') ];
+}
+
 sub api_routes {
     my ( $self, $args ) = @_;
 
@@ -244,6 +250,7 @@ sub _output_configure_page {
         itemtypes_text         => join( ', ', @{ $self->_itemtypes() } ),
         locations_text         => join( ', ', @{ $self->_authorised_values('LOC') } ),
         branches_text          => join( ', ', @{ $self->_branches() } ),
+        configure_href         => '/cgi-bin/koha/plugins/run.pl?class=' . $self->{'class'} . '&method=configure',
         plugin_display_version => $self->plugin_display_version(),
     );
 

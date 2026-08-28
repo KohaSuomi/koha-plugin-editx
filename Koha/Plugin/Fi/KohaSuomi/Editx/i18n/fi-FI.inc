@@ -37,5 +37,8 @@
         configure_35                               = "Nidetyyppejä ei löytynyt.",
         configure_36                               = "Tallenna määritys",
         configure_37                               = "Peruuta",
+        configure_38                               = "Plugit",
+        configure_39                               = "EDItX-plugin",
+        configure_40                               = "Määritä",
     }
 %]

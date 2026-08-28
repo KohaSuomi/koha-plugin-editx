@@ -37,5 +37,8 @@
         configure_35                               = "No item types found.",
         configure_36                               = "Save configuration",
         configure_37                               = "Cancel",
+        configure_38                               = "Plugins",
+        configure_39                               = "EDItX plugin",
+        configure_40                               = "Configure",
     }
 %]

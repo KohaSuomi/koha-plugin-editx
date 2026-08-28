@@ -37,5 +37,8 @@
         configure_35                               = "Inga objekttyper hittades.",
         configure_36                               = "Spara konfiguration",
         configure_37                               = "Avbryt",
+        configure_38                               = "Insticksprogram",
+        configure_39                               = "EDItX-tillägg",
+        configure_40                               = "Konfigurera",
     }
 %]
