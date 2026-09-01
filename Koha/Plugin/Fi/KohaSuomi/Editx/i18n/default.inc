@@ -1,7 +1,7 @@
 [%
     T = {
-        configure_1                                = "Koha: Configure EDItX plugin v",
-        configure_2                                = "Configure EDItX plugin v",
+        configure_1                                = "Koha: Configure EDItX plugin",
+        configure_2                                = "Configure EDItX plugin",
         configure_3                                = "Configure the import folders, EDItX processing rules, notifications, and ONIX ProductForm mappings.",
         configure_4                                = "Import intake",
         configure_5                                = "Configured",

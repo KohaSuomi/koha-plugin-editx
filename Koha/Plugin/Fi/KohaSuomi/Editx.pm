@@ -31,13 +31,13 @@ sub get_localized_metadata {
     my ($name, $description);
 
     if ( $lang eq 'sv-SE' ) {
-        $name = "EDItX-plugin";
-        $description = "Lägger till EDItX-funktionalitet i Koha. (Lokala databaser)";
+        $name = "EDItX";
+        $description = "Lägger till en EDItX-funktionalitet i Koha. (Lokala databaser)";
     } elsif ( $lang eq 'fi-FI' ) {
-        $name = "EDItX-plugin";
+        $name = "EDItX";
         $description = "Lisää EDItX-toiminnallisuuden Kohaan. (Paikalliskannat)";
     } else {
-        $name = "EDItX-plugin";
+        $name = "EDItX";
         $description = "Adds EDItX functionality to Koha. (Local databases)";
     }
     return ($name, $description);
