@@ -25,7 +25,7 @@
 
                 <div class="page-section editx-page-header">
                     <div class="ps-3">
-                        <h1>[% T.configure_2 %][% plugin_display_version | html %]</h1>
+                        <h1>[% T.configure_2 %]&nbsp;[% plugin_display_version | html %]</h1>
                         <p class="help-block">[% T.configure_3 %]</p>
                     </div>
                     <div class="editx-status-strip pe-3">
