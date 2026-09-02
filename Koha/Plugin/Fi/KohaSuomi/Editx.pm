@@ -71,8 +71,6 @@ sub install() {
     $self->drop_editx_contents_table();
     $self->create_map_productform();
     $self->create_aqbudgets_spend_log();
-    $self->sql_insert_data();
-    $self->create_sequences_table();
     my $dbh = C4::Context->dbh;
     $dbh->do("INSERT IGNORE INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES ('Koha::Plugin::Fi::KohaSuomi::Editx', 'next_barcode', '1');");
     return 1;
