@@ -29,6 +29,19 @@ my @claims;
 
     sub id { return $_[0]->{id}; }
     sub raw_msg { return $_[0]->{raw_msg}; }
+    sub filename { return $_[0]->{filename}; }
+}
+
+{
+    package TestOrderObject;
+
+    sub new {
+        my ($class, %args) = @_;
+        return bless \%args, $class;
+    }
+
+    sub id { return $_[0]->{id}; }
+    sub setFileName { $_[0]->{filename} = $_[1]; return 1; }
 }
 
 my $mock_database = Test::MockModule->new('Koha::Database');
@@ -72,7 +85,7 @@ $mock_parser->redefine('parseDb', sub {
 
     my ($id) = $raw_msg =~ /^msg:(.+)$/;
     $id //= $raw_msg;
-    return { id => $id };
+    return TestOrderObject->new(id => $id);
 });
 
 my $mock_orderprocessor = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor');
@@ -81,7 +94,7 @@ $mock_orderprocessor->redefine('new', sub {
 });
 $mock_orderprocessor->redefine('process', sub {
     my ($self, $order_object) = @_;
-    my $id = $order_object->{id};
+    my $id = $order_object->id;
     push @processed_ids, $id;
 
     die "Simulated process error for $id" if $process_fail_for{$id};
@@ -135,8 +148,8 @@ sub run_cron {
 subtest 'processes NEW messages to OK' => sub {
     my ($ok, $error) = run_cron(
         messages => [
-            TestEdiMessageRow->new(id => 1, raw_msg => 'msg:1'),
-            TestEdiMessageRow->new(id => 2, raw_msg => 'msg:2'),
+            TestEdiMessageRow->new(id => 1, raw_msg => 'msg:1', filename => 'test_1.xml'),
+            TestEdiMessageRow->new(id => 2, raw_msg => 'msg:2', filename => 'test_2.xml'),
         ],
     );
 
@@ -161,7 +174,7 @@ subtest 'processes NEW messages to OK' => sub {
 subtest 'marks FAILED and logs error when processing fails' => sub {
     my ($ok, $error) = run_cron(
         messages => [
-            TestEdiMessageRow->new(id => 10, raw_msg => 'msg:10'),
+            TestEdiMessageRow->new(id => 10, raw_msg => 'msg:10', filename => 'test_10.xml'),
         ],
         process_fail_for => {
             10 => 1,
@@ -187,7 +200,7 @@ subtest 'marks FAILED and logs error when processing fails' => sub {
 subtest 'marks FAILED and logs error when parsing fails' => sub {
     my ($ok, $error) = run_cron(
         messages => [
-            TestEdiMessageRow->new(id => 20, raw_msg => 'bad:xml'),
+            TestEdiMessageRow->new(id => 20, raw_msg => 'bad:xml', filename => 'test_20.xml'),
         ],
         parse_fail_for => {
             'bad:xml' => 1,

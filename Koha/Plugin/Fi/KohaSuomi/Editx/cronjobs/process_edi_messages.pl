@@ -37,11 +37,12 @@ foreach my $message (@new_messages) {
         next unless $claimed;
 
         my $order_object = $parser->parseDb($message->raw_msg);
-        $order_object->setFileName($message->filename);
 
         if (!$order_object) {
             die "Failed to parse XML content\n";
         }
+
+        $order_object->setFileName($message->filename);
 
         $orderProcessor->process($order_object);
         $edi_message->update($message->id, 'OK');
