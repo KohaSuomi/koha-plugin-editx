@@ -261,6 +261,65 @@ Sanoman tiedosto tulee olla xml-muodossa.
 </LibraryShipNotice>
 ```
 
+## REST-rajapinta
+
+Plugin tarjoaa REST-rajapinnan ulkopuolisille järjestelmille, jotka haluavat integroitua ja lähettää EDItX-sanomia suoraan Koha-palvelimelle. Rajapinta on käytössä nimiavaruudessa `kohasuomi`, eli sanomat lähetetään osoitteeseen `/api/v1/contrib/kohasuomi/editx`.
+
+### Päätepiste
+
+| Metodi | Osoite | Kuvaus |
+| --- | --- | --- |
+| POST | `/api/v1/contrib/kohasuomi/editx` | Lisää EDItX-sanoman `edifact_messages`-tauluun statuksella `NEW` |
+
+### Todennus (OAuth2)
+
+Todennus tehdään Koha:n OAuth2 client credentials -vuolla.
+
+Hae access token lähettämällä `client_id` ja `client_secret` token-päätepisteeseen:
+
+```
+curl -X POST https://<koha-palvelin>/api/v1/oauth/token \
+     -d grant_type=client_credentials \
+     -d client_id=<CLIENT_ID> \
+     -d client_secret=<CLIENT_SECRET>
+```
+
+Vastauksena tulee access token:
+
+```json
+{
+    "access_token": "xxxxxxxxxxxxxxxx",
+    "token_type": "Bearer",
+    "expires_in": 3600
+}
+```
+
+Token on voimassa tunnin (`expires_in` 3600 sekuntia), jonka jälkeen haetaan uusi. Jos tunnukset ovat väärät, vastauksena on `403 unauthorized_client`. Vanhentunut tai kelvoton token tuottaa virheen `401`.
+
+### Sanoman lähetys
+
+Lähetä EDItX-sanoma XML-merkkijonona POST-pyynnöllä. `Content-Type`-otsakkeen on oltava `application/xml` ja mukaan laitetaan haettu access token `Authorization: Bearer` -otsakkeena. Esimerkki sanoman sisällöstä on kohdassa [Sanoma-esimerkki](#sanoma-esimerkki).
+
+```
+curl -X POST https://<koha-palvelin>/api/v1/contrib/kohasuomi/editx \
+     -H "Authorization: Bearer <ACCESS_TOKEN>" \
+     -H "Content-Type: application/xml" \
+     --data @sanoma.xml
+```
+
+#### Vastaukset
+
+| Tilakoodi | Merkitys |
+| --- | --- |
+| `201` | Sanoma tallennettu onnistuneesti (`{"message":"Data saved successfully"}`) |
+| `400` | Virheellinen XML tai puuttuvat pakolliset kentät (esim. tuntematon SAN-tunnus, tuntematon kustannuspaikka tai myyjä) |
+| `404` | Kohdetta ei löytynyt |
+| `500` | Odottamaton palvelinvirhe |
+
+### Sanoman elinkaari
+
+Lähetetty sanoma tallentuu `edifact_messages`-tauluun statuksella `NEW`. Ajastettu `process_edi_messages.pl`-skripti käsittelee uudet sanomat tilauksiksi, jonka jälkeen käsittelyä voi seurata Koha:n EDI-sanomat-sivulla.
+
 ## Käyttöohjeet
 
 Yleisiin käyttöohjeisiin pääset [tästä](https://koha-suomi.fi/dokumentaatio/editx/)
