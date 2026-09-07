@@ -4,75 +4,80 @@ use strict;
 use warnings;
 use Modern::Perl;
 use Try::Tiny;
-use Data::Dumper;
+use File::Slurp;
+use File::Copy;
+use XML::LibXML;
 
 use Koha::Plugins;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
-use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser;
-use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice;
-use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor;
-use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::BranchLocationYear::Parser;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger;
-use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::File;
-use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator;
+use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage;
 
-my $config = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
+my $config = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config->new;
 my $settings = $config->getSettings();
-my $logPath;
 
-if(defined $settings->{'settings'}->{'log_directory'}){
-    $logPath = $settings->{'settings'}->{'log_directory'};
-}
-else{
-    die('The log_directory not set in config.');
-}
+my $logPath    = $settings->{'settings'}->{'log_directory'} // die('log_directory not set');
+my $tmpPath    = $settings->{'settings'}->{'import_tmp_path'} // die('import_tmp_path not set');
+my $archivePath = $settings->{'settings'}->{'import_archive_path'} // die('import_archive_path not set');
+my $failedPath = $settings->{'settings'}->{'import_failed_path'} // die('import_failed_path not set');
 
-my $fileManager = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::File;
-my $logger = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger($logPath);
-my $orderProcessor = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor;
+$tmpPath =~ s/\/$//;
+$tmpPath .= '/';
+$archivePath =~ s/\/$//;
+$archivePath .= '/';
+$failedPath =~ s/\/$//;
+$failedPath .= '/';
 
-$logger->log("Started Koha::Procurement",1);
+my $logger = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger->new($logPath);
+my $edi_message = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage->new;
 
-my $parser = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser((
-    'objectFactory', new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice((
-            'schemaPath','/var/lib/koha/plugins/Koha/Plugin/Fi/KohaSuomi/Editx/Procurement/EditX/XmlSchema/'
-        ))
-    ));
+$logger->log("Started runEditXImport", 1);
 
-my %orders;
-my $libraryShipNoticePath;
+opendir(my $dh, $tmpPath) or die "Cannot open directory $tmpPath: $!";
+my @files = grep { /\.xml$/i && -f "$tmpPath$_" } readdir($dh);
+closedir $dh;
 
-if(defined $settings->{'settings'}->{'import_load_path'}){
-    $libraryShipNoticePath = $settings->{'settings'}->{'import_load_path'};
-}
-
-$fileManager->fillLoadFolder();
-%orders = $parser->parseFiles($libraryShipNoticePath);
-
-my $fileName;
-my $order;
-if(%orders){
-    while ( ($fileName, $order) = each %orders )
-    {
-       try{ 
-            $logger->log("Started processing order from file $fileName");
-            Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator::validateEditx($fileName);
-
-            # I am old and obsolete $orderProcessor->startProcessing();
-            $orderProcessor->process($order);
-            # I am old and obsolete $orderProcessor->endProcessing();
-            $fileManager->archiveFile($fileName);
-            
-            $logger->log("Ended processing order from file $fileName");
-        }
-        catch{
-            # I am old and obsolete $orderProcessor->rollBack();
-            $fileManager->moveToFailFolder($fileName);
-            my $failMsq = "Order processing failed for file  $fileName.";
-            $logger->log($failMsq);
-            $logger->logError($failMsq);
-            $logger->logError("Error was: $_");
-        }
+foreach my $file (@files) {
+    if (!-s "$tmpPath$file") {
+        $logger->log("File $file is empty, moving to failed");
+        move("$tmpPath$file", "$failedPath$file") or die "Could not move file $file to failed: $!";
+        next;
     }
+
+    my $size1 = (stat "$tmpPath$file")[7];
+    sleep(1);
+    my $size2 = (stat "$tmpPath$file")[7];
+    if ($size1 != $size2) {
+        $logger->log("File $file is still being written, skipping until next run");
+        next;
+    }
+
+    my $content = read_file("$tmpPath$file");
+    my $xml = XML::LibXML->new()->parse_string($content);
+    my $filename = $edi_message->constructFilename($xml, undef);
+    print "Processing file $file, constructed filename: $filename\n";
+    if ($edi_message->duplicateExists($filename)) {
+        $logger->log("File $file already exists as $filename in DB, moving to failed");
+        move("$tmpPath$file", "$failedPath$file") or die "Could not move file $file to failed directory: $!";
+        next;
+    }
+
+    try {
+        my $vendor_id = $edi_message->findVendorId($xml);
+
+        if (!$vendor_id) {
+            die "Could not find matching vendor for file $file";
+        }
+
+        $edi_message->create($content, $filename, $vendor_id);
+        move("$tmpPath$file", "$archivePath$file") or die "Could not move file $file to archive: $!";
+        $logger->log("File $file saved as $filename to edifact_messages and archived");
+    }
+    catch {
+        $logger->logError("Failed to process file $file: $_");
+        move("$tmpPath$file", "$failedPath$file") or die "Could not move file $file to failed directory: $!";
+        $edi_message->addToErrorLog($file, $_);
+    };
 }
-$logger->log("Ended Koha::Plugin::Fi::KohaSuomi::Editx::Procurement",1);
+
+$logger->log("Ended runEditXImport", 1);

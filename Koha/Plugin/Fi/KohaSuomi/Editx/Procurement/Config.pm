@@ -6,9 +6,28 @@ use File::Basename;
 use Data::Dumper;
 use C4::Context;
 
+use constant PLUGIN_CLASS => 'Koha::Plugin::Fi::KohaSuomi::Editx';
+
 my $singleton;
 my $configFile = "procurement-config.xml";
-my $settings;
+
+my @PLUGIN_SETTING_KEYS = qw(
+    import_tmp_path
+    import_load_path
+    import_archive_path
+    import_failed_path
+    import_failed_archived_path
+    authoriser
+    allowed_locations
+    productform_alternative_triggers
+    automatch_biblios
+    use_finna_materialtype
+);
+
+my @PLUGIN_NOTIFICATION_KEYS = qw(
+    mailto
+    mailfrom
+);
 
 sub new {
     my $class = shift;
@@ -42,22 +61,83 @@ sub getLogDir {
     return $config;
 }
 
-sub getSettings{
+sub getSettings {
     my $self = shift;
-    if(!$settings){
-        my $confs = $self->loadConfigXml();
-        if($confs){
-            $confs->{'settings'}->{'log_directory'} = $self->getLogDir();
-            $settings = $confs;
+    my $confs = $self->loadConfigXml();
+    $confs->{'settings'} ||= {};
+    $confs->{'notifications'} ||= {};
+
+    my $pluginData = $self->loadPluginData();
+    foreach my $key (@PLUGIN_SETTING_KEYS) {
+        my $pluginKey = "procurement_$key";
+        if ( exists $pluginData->{$pluginKey} ) {
+            $confs->{'settings'}->{$key} = $pluginData->{$pluginKey};
+        }
+    }
+    foreach my $key (@PLUGIN_NOTIFICATION_KEYS) {
+        my $pluginKey = "procurement_notification_$key";
+        if ( exists $pluginData->{$pluginKey} ) {
+            $confs->{'notifications'}->{$key} = $pluginData->{$pluginKey};
         }
     }
 
-    return $settings;
+    $confs->{'settings'}->{'log_directory'} = $self->getLogDir();
+
+    return $confs;
+}
+
+sub loadPluginData {
+    my $self = shift;
+
+    my @pluginKeys = (
+        map { "procurement_$_" } @PLUGIN_SETTING_KEYS,
+        map { "procurement_notification_$_" } @PLUGIN_NOTIFICATION_KEYS,
+    );
+    my $placeholders = join ',', ('?') x @pluginKeys;
+    my $rows = C4::Context->dbh->selectall_arrayref(
+        "SELECT plugin_key, plugin_value FROM plugin_data WHERE plugin_class = ? AND plugin_key IN ($placeholders)",
+        { Slice => {} },
+        PLUGIN_CLASS,
+        @pluginKeys
+    );
+
+    my $pluginData = { map { $_->{plugin_key} => $_->{plugin_value} } @$rows };
+    
+    # If value is empty, fetch from XML config file and save to database for future use
+    my $xmlConfig = $self->loadConfigXml();
+    foreach my $key (keys %$pluginData) {
+        if (!defined $pluginData->{$key} || $pluginData->{$key} eq '') {
+            my $cleanKey = $key;
+            $cleanKey =~ s/^procurement_notification_//;
+            $cleanKey =~ s/^procurement_//;
+            my $value;
+            if (exists $xmlConfig->{settings}->{$cleanKey}) {
+                $value = $xmlConfig->{settings}->{$cleanKey};
+            } elsif (exists $xmlConfig->{notifications}->{$cleanKey}) {
+                $value = $xmlConfig->{notifications}->{$cleanKey};
+            }
+            if (defined $value) {
+                $pluginData->{$key} = $value;
+                # Save to database
+                my $dbh = C4::Context->dbh;
+                $dbh->do(
+                    "INSERT INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE plugin_value = ?",
+                    undef,
+                    PLUGIN_CLASS,
+                    $key,
+                    $value,
+                    $value
+                );
+            }
+        }
+    }
+
+    return $pluginData;
 }
 
 sub getUseAutomatchBiblios {
     my $self = shift;
-    $settings = $self->getSettings();
+    my $settings = $self->getSettings();
     my $result = 'yes';
     if(defined $settings->{'settings'}->{'automatch_biblios'}){
         $result = $settings->{'settings'}->{'automatch_biblios'};
@@ -67,7 +147,7 @@ sub getUseAutomatchBiblios {
 
 sub getUseFinnaMaterials {
     my $self = shift;
-    $settings = $self->getSettings();
+    my $settings = $self->getSettings();
     my $result = 'no';
     if(defined $settings->{'settings'}->{'use_finna_materialtype'}){
         $result = $settings->{'settings'}->{'use_finna_materialtype'};

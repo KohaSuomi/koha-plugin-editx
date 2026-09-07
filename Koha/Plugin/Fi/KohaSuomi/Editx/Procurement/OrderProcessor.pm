@@ -83,22 +83,34 @@ sub process {
     my $order = $_[0];
     my $orderCreator = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor::Order->new;
     my $basketHelper = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor::Basket->new;
+    $orderCreator->setLogger($self->getLogger()) if $self->getLogger();
     if(!$order){
-        $self->getLogger()->logError("Order not set.");
-        return 0;
+        die("Order not set.");
     }
     my $itemDetails = $order->getItems();
     if(scalar @$itemDetails <= 0){
-        $self->getLogger()->logError('Order has no items.');
-        return 0;
+        die('Order has no items.');
     }
 
-    my ($item, $copyDetail, $copyQty, $barCode, $biblio, $biblioitem, $basketNumber, $bookseller, $itemId, $orderId);
+    # Validate config settings before processing
     my $authoriser = $self->getAuthoriser();
+    unless ($authoriser) {
+        die("Authoriser is not configured in plugin settings.");
+    }
+
+    my $allowedLocations = $self->getAllowedLocations();
+    unless ($allowedLocations) {
+        die("Allowed locations are not configured in plugin settings.");
+    }
+    
     my $basketName = $order->getBasketName();
-  
+    unless ($basketName) {
+        die("Basket name could not be determined from shipment notice.");
+    }
     $self->getLogger()->log("getAuthoriser: " . $authoriser);
     $self->getLogger()->log("getBasketName: " . $basketName);
+
+    my ($item, $copyDetail, $copyQty, $barCode, $biblio, $biblioitem, $basketNumber, $bookseller, $itemId, $orderId);
     
     my (@copydetailstoadd, @itemstoadd, @orderstoadd, @bibliostoadd);
 
@@ -152,13 +164,6 @@ sub process {
     }
     
     $self->getLogger()->log("Budgets updated.");
-    
-    #   by the words of Johanna's granny concerning her 2-bristled dishwasher brush: 'You never know when you might need to use it'
-    #for(my $i = 0; $i <= $arr_size -1; $i++){
-    #    
-    #    ModZebra( $bibliostoadd[$i], "specialUpdate", "biblioserver" );
-    #    $self->getLogger()->log("Added bibliographic record $bibliostoadd[$i] to Zebra queue.");
-    #}
 
     $basketHelper->closeBasket($basketName);
 }
@@ -393,8 +398,14 @@ sub createBiblio {
         $data->{'timestamp'} = $order->getTimeStamp();
         $data->{'datecreated'} = $order->getDateCreated();
 
-        my @paramsToValidate = ('title', 'notes', 'timestamp', 'datecreated');
-        if($self->validate({'params', \@paramsToValidate , 'data', $data })){
+        my %paramsToValidate = (
+            title       => 'ItemDescription/Title',
+            notes       => 'Header/SellerParty/PartyName/NameLine',
+            timestamp   => 'Timestamp',
+            datecreated => 'Date created',
+        );
+        my @missing = $self->validate({'params', \%paramsToValidate , 'data', $data });
+        unless (@missing) {
 
             my $biblio = Koha::Biblio->new(
                 {
@@ -420,7 +431,7 @@ sub createBiblio {
             $self->getLogger()->log("createBiblio stored biblionumber: ". $result);         
         }
         else{
-            die('createBiblio: Required params not set.');
+            die('createBiblio: Missing from EDItX message: ' . join(', ', @missing));
         }
     }
     return $result;
@@ -447,7 +458,6 @@ sub createBiblioItem {
         $data->{'editionstatement'} = $copyDetail->getEditionStatement();
         $data->{'timestamp'} = $order->getTimeStamp();
         my $marc = $copyDetail->getMarcXml();
-        utf8::decode($marc);
         $data->{'marcxml'} = $marc;
         $data->{'notes'} = $itemDetail->getNotes();
         $data->{'image'} = $copyDetail->getImageDescrition();
@@ -455,13 +465,15 @@ sub createBiblioItem {
         $data->{'place'} = $copyDetail->getPlace();
         $data->{'url'} = '';
 
-        my @paramsToValidate = ('biblio', 'productform', 'timestamp', 'marcxml', 'notes');
-        my @isbn = ('isbn');
-        my @ean = ('ean');
-        my @identifierParams = ('publishercode', 'editionresponsibility');
-        if($self->validate({'params', \@paramsToValidate , 'data', $data })
-            #&& ($self->validate({'params', \@isbn , 'data', $data }) || $self->validate({'params', \@ean , 'data', $data }) || $self->validate({'params', \@identifierParams , 'data', $data }) )
-        ){          
+        my %paramsToValidate = (
+            biblio      => 'Bibliographic record',
+            productform => 'ItemDescription/ProductForm',
+            timestamp   => 'Timestamp',
+            marcxml    => 'CopyDetail/Message[MessageType="04"]/MessageLine',
+            notes       => 'Header/SellerParty/PartyName/NameLine',
+        );
+        my @missing = $self->validate({'params', \%paramsToValidate , 'data', $data });
+        unless (@missing) {          
             my $biblioItem = Koha::Biblioitem->new(
                 {
                     biblionumber        => $data->{biblio},
@@ -499,7 +511,7 @@ sub createBiblioItem {
             }   
         }
         else{
-            die('Required params not set.');
+            die('createBiblioItem: Missing from EDItX message: ' . join(', ', @missing));
         }
     }
     return @result;
@@ -514,13 +526,16 @@ sub createBiblioMetadata {
     if($itemDetail->isa('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail') ){
         $data->{'biblio'} = $biblio;
         my $marc = $copyDetail->getMarcXml();
-        utf8::decode($marc);
         $data->{'marcxml'} = $marc;
         $data->{'format'} = 'marcxml';
         $data->{'marcflavour'} = C4::Context->preference('marcflavour');
 
-        my @paramsToValidate = ('biblio', 'marcxml');
-        if($self->validate({'params', \@paramsToValidate , 'data', $data })){
+        my %paramsToValidate = (
+            biblio   => 'Bibliographic record',
+            marcxml => 'CopyDetail/Message[MessageType="04"]/MessageLine',
+        );
+        my @missing = $self->validate({'params', \%paramsToValidate , 'data', $data });
+        unless (@missing) {
         
             my $biblioMetadata = Koha::Biblio::Metadata->new(
                 {
@@ -547,7 +562,7 @@ sub createBiblioMetadata {
             } 
         }
         else{
-            die('Required params not set.');
+            die('createBiblioMetadata: Missing from EDItX message: ' . join(', ', @missing));
         }
     }
     return $result;
@@ -587,8 +602,8 @@ sub createItem {
         my @prefixes = values %$yaml;
 
         ($args{date}) = strftime "%y%m%d", localtime;
-        ($args{tag},$args{subfield})       =  C4::Biblio::GetMarcFromKohaField("items.barcode", '');
-        ($args{loctag},$args{locsubfield}) =  C4::Biblio::GetMarcFromKohaField("items.homebranch", '');
+        ($args{tag},$args{subfield})       =  C4::Biblio::GetMarcFromKohaField("items.barcode");
+        ($args{loctag},$args{locsubfield}) =  C4::Biblio::GetMarcFromKohaField("items.homebranch");
         ($args{branchcode}) = $data->{'destinationlocation'};
         ($args{prefix}) = $yaml->{$data->{'destinationlocation'}} || $yaml->{'Default'};
         ($args{prefixes}) = \@prefixes;
@@ -597,8 +612,20 @@ sub createItem {
 
         $data->{"barcode"} = $self->generateBarcode(\%args, $autoBarcodeType);
 
-        my @paramsToValidate = ('biblio', 'biblioitem', 'booksellerid', 'destinationlocation', 'price', 'replacementprice', 'productform', 'notes', 'datecreated', 'collectioncode');
-        if($self->validate({'params', \@paramsToValidate , 'data', $data })){
+        my %paramsToValidate = (
+            biblio              => 'Bibliographic record',
+            biblioitem          => 'Bibliographic item',
+            booksellerid        => 'Header/SellerParty/PartyID/Identifier',
+            destinationlocation => 'CopyDetail/DeliverToLocation',
+            price               => 'PricingDetail/Price[PriceQualifierCode="FixedRPExcludingTax"]/MonetaryAmount',
+            replacementprice    => 'PricingDetail/Price[PriceQualifierCode="FixedRPExcludingTax"]/MonetaryAmount',
+            productform         => 'ItemDescription/ProductForm',
+            notes               => 'Header/SellerParty/PartyName/NameLine',
+            datecreated         => 'Date created',
+            collectioncode      => 'CopyDetail/DeliverToLocation',
+        );
+        my @missing = $self->validate({'params', \%paramsToValidate , 'data', $data });
+        unless (@missing) {
             
         my $item = Koha::Item->new(
                 {
@@ -626,11 +653,11 @@ sub createItem {
                 $result = $item->itemnumber;
             }
             else{
-                die('Itemidnumber not set after db save.')
+                die('Itemnumber not set after db save.');
             }        
         }
         else{
-             die('Required params not set.');
+             die('createItem: Missing from EDItX message: ' . join(', ', @missing));
         }
     }
     return $result;
@@ -675,15 +702,16 @@ sub getBookseller {
     $bookseller = $stmnt->fetchrow_array();
 
     if(!$bookseller){
+        my $errorMsg;
         if ($san) {
-            $self->getLogger()->log("No vendor for SAN $san (qualifier $qualifier) in vendor_edi_accounts.");
-            $self->getLogger()->log("No vendor for SAN $san (qualifier $qualifier) in vendor_edi_accounts.");
+            $errorMsg = "No vendor for SAN $san (qualifier $qualifier) in vendor_edi_accounts.";
+            $self->getLogger()->logError($errorMsg);
         }
         else {
-            $self->getLogger()->log("No vendor in shipment notice.");
-            $self->getLogger()->log("No vendor in shipment notice.");
+            $errorMsg = "No vendor identifier (SAN) found in shipment notice.";
+            $self->getLogger()->logError($errorMsg);
         }
-        die();
+        die($errorMsg);
     }
     return $bookseller;
 }
@@ -754,6 +782,7 @@ sub validate {
     my $values = $_[0];
     my ($params, $data, $param);
     my $result = 1;
+    my @missing;
     if(defined $values->{params}){
         $params = $values->{params};
     }
@@ -762,15 +791,25 @@ sub validate {
         $data  = $values->{data};
     }
 
-    foreach(@$params){
-        $param = $_;
-
-        if(!defined $data->{$param} || $data->{$param} eq ''){
-            $self->getLogger()->logError("Required parameter: '\$$param' was not set or it was empty.",1);
-            $result = 0;
+    if (ref $params eq 'HASH') {
+        while (my ($key, $desc) = each %$params) {
+            if(!defined $data->{$key} || $data->{$key} eq ''){
+                $self->getLogger()->logError("Required parameter: '\$$key' was not set or it was empty.",1);
+                push @missing, $desc;
+                $result = 0;
+            }
+        }
+    } else {
+        foreach(@$params){
+            $param = $_;
+            if(!defined $data->{$param} || $data->{$param} eq ''){
+                $self->getLogger()->logError("Required parameter: '\$$param' was not set or it was empty.",1);
+                push @missing, $param;
+                $result = 0;
+            }
         }
     }
-    return $result;
+    return wantarray ? @missing : $result;
 }
 
 sub getAuthoriser {
@@ -781,6 +820,16 @@ sub getAuthoriser {
         $authoriser = $settings->{settings}->{authoriser};
     }
     return $authoriser;
+}
+
+sub getAllowedLocations {
+    my $self = shift;
+    my $locationCode;
+    my $settings = $self->getConfig()->getSettings();
+    if(defined $settings->{settings}->{allowed_locations} ){
+        $locationCode = $settings->{settings}->{allowed_locations};
+    }
+    return $locationCode;
 }
 
 

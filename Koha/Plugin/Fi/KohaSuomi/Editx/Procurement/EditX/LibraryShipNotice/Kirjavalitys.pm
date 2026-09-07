@@ -4,6 +4,7 @@ package Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotic
 use Modern::Perl;
 use Moose;
 use Data::Dumper;
+use utf8;
 
 extends "Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice";
 

@@ -1,0 +1,107 @@
+name: Perl tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mariadb:11.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+      memcached:
+        image: memcached:1.6-alpine
+        ports:
+          - 11211:11211
+
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@v4
+
+      - name: Check out Koha
+        uses: actions/checkout@v4
+        with:
+          repository: KohaSuomi/Koha-25x
+          ref: ks25
+          path: koha
+
+      - name: Set up Perl
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: '5.38'
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cpanminus default-libmysqlclient-dev libexpat1-dev \
+            libfribidi-dev libgd-dev libyaz-dev libxslt1-dev libxml2-dev libxml2-utils
+
+      - name: Get Koha dependency list hash
+        id: koha-deps
+        working-directory: koha
+        run: |
+          # Create hash from cpanfile to use as cache key
+          echo "hash=${{ hashFiles('koha/cpanfile') }}" >> $GITHUB_OUTPUT
+
+      - name: Cache Perl dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/perl5
+            /usr/local/lib/perl5
+            /usr/local/share/perl5
+          key: ${{ runner.os }}-perl-${{ steps.koha-deps.outputs.hash }}-v1
+          restore-keys: |
+            ${{ runner.os }}-perl-
+
+      - name: Install Koha Perl dependencies
+        working-directory: koha
+        run: cpanm --notest --installdeps .
+
+      - name: Prepare Koha test environment
+        run: |
+          sudo mkdir -p /home/koha/var/lib/plugins /home/koha/var/log /home/koha/var/run/zebradb /home/koha/var/spool /home/koha/doc
+          sudo chmod -R 777 /home/koha/var
+          sudo ln -sfn "$GITHUB_WORKSPACE/koha" /home/koha/src
+          sudo ln -sfn "$GITHUB_WORKSPACE/koha/etc" /home/koha/etc
+
+          mkdir -p koha/Koha/Plugin/Fi/KohaSuomi
+          ln -sfn "$GITHUB_WORKSPACE/Koha/Plugin/Fi/KohaSuomi/Editx" koha/Koha/Plugin/Fi/KohaSuomi/Editx
+
+          cp koha/t/data/koha-conf.xml koha/t/data/koha-conf-ci.xml
+          sed -i 's#<hostname>localhost</hostname>#<hostname>127.0.0.1</hostname>#' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__LOG_DIR__#/home/koha/var/log#g' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__DB_NAME__#koha#g' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__DB_HOST__#127.0.0.1#g' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__DB_USER__#kohaadmin#g' koha/t/data/koha-conf-ci.xml
+          sed -i 's#__DB_PASS__#katikoan#g' koha/t/data/koha-conf-ci.xml
+          
+          # Koha loads log4perl config from etc/log4perl.conf
+          if [ -f koha/etc/log4perl.conf ]; then
+            sed -i 's#__LOG_DIR__#/home/koha/var/log#g' koha/etc/log4perl.conf
+          fi
+
+      - name: Create and seed Koha database
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE DATABASE IF NOT EXISTS koha CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE USER IF NOT EXISTS 'kohaadmin'@'%' IDENTIFIED BY 'katikoan';"
+          mysql -h 127.0.0.1 -uroot -proot -e "GRANT ALL PRIVILEGES ON koha.* TO 'kohaadmin'@'%'; FLUSH PRIVILEGES;"
+          mysql -h 127.0.0.1 -uroot -proot koha < koha/installer/data/mysql/kohastructure.sql
+
+      - name: Run Perl tests
+        working-directory: koha
+        env:
+          KOHA_CONF: ${{ github.workspace }}/koha/t/data/koha-conf-ci.xml
+          PERL5LIB: ${{ github.workspace }}/koha:${{ github.workspace }}/koha/t/lib
+        run: prove -lrv Koha/Plugin/Fi/KohaSuomi/Editx/t

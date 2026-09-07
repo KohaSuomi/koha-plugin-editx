@@ -26,6 +26,12 @@ has 'objectName' => (
     default => 0
 );
 
+has 'defaultObjectName' => (
+    is => 'rw',
+    reader => 'getDefaultObjectName',
+    writer => 'setDefaultObjectName'
+);
+
 my @objectCandidates = ();
 
 sub getSchema {
@@ -85,6 +91,12 @@ sub determineObjectClass{
                 last;
             }
         }
+    }
+
+    # Reset to default if no candidate matched, so subsequent calls
+    # with different XML don't inherit a stale class name.
+    unless ($result) {
+        $self->setObjectName($self->getDefaultObjectName());
     }
 }
 

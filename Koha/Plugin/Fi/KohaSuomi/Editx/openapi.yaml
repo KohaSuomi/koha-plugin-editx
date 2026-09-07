@@ -1,0 +1,117 @@
+"/editx":
+  post:
+    x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#add"
+    operationId: postEditx
+    tags:
+      - biblios
+    parameters:
+      - name: body
+        in: body
+        required: true
+        description: Editx XML string
+        schema:
+          type: string
+    produces:
+      - application/xml
+    responses:
+      "201":
+        description: A biblio record with componentparts
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: Success message
+      "400":
+        description: Bad request
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Invalid XML or missing required fields
+      "404":
+        description: An error occurred
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Biblio not found
+      "500":
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+    x-koha-authorization:
+      permissions:
+        acquisition: edi_manage
+"/editx/{id}":
+  put:
+    x-mojo-to: "Fi::KohaSuomi::Editx::Controllers::EditxController#update"
+    operationId: putEditx
+    tags:
+      - editx
+    parameters:
+      - name: id
+        in: path
+        required: true
+        type: integer
+        description: ID of the Editx message to update
+      - name: body
+        in: body
+        required: true
+        description: Status update for the Editx message
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+                - NEW
+                - PROCESSING
+                - OK
+                - FAILED
+          required:
+            - status
+    produces:
+      - application/xml
+    responses:
+      "200":
+        description: Updated Editx message
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: Success message
+      "400":
+        description: Bad request
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Invalid XML or missing required fields
+      "404":
+        description: Not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Editx message not found
+      "500":
+        description: Internal server error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+    x-koha-authorization:
+      permissions:
+        acquisition: edi_manage

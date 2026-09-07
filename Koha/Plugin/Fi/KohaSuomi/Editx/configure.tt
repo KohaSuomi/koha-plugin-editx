@@ -1,0 +1,152 @@
+[% TRY %]
+    [% PROCESS "$PLUGIN_DIR/i18n/${LANG}.inc" %]
+[% CATCH %]
+    [% PROCESS "$PLUGIN_DIR/i18n/default.inc" %]
+[% END %]
+[% USE KohaDates %]
+[% USE raw %]
+[% INCLUDE 'doc-head-open.inc' %]
+<title>[% T.configure_1 %][% plugin_display_version | html %]</title>
+<link rel="stylesheet" href="[% PLUGIN_PATH %]/static_files/editx.css" />
+[% INCLUDE 'doc-head-close.inc' %]
+</head>
+<body id="plugins_editx_configure" class="plugins">
+[% WRAPPER 'header.inc' %]
+    [% INCLUDE 'prefs-admin-search.inc' %]
+[% END %]
+
+[% INCLUDE 'editx_breadcrumbs.inc' %]
+
+<div class="main container-fluid">
+    <div class="row">
+        <div class="col-12 col-xl-10">
+            <main>
+                [% INCLUDE 'messages.inc' %]
+
+                <div class="page-section editx-page-header">
+                    <div class="ps-3">
+                        <h1>[% T.configure_2 %]&nbsp;[% plugin_display_version | html %]</h1>
+                        <p class="help-block">[% T.configure_3 %]</p>
+                    </div>
+                    <div class="editx-status-strip pe-3">
+                        <div class="editx-status-item">
+                            <span class="editx-status-label">[% T.configure_4 %]</span>
+                            <strong>[% IF procurement_settings.import_tmp_path %][% T.configure_5 %][% ELSE %][% T.configure_6 %][% END %]</strong>
+                            <span class="editx-status-note">[% procurement_settings.import_tmp_path | html %]</span>
+                        </div>
+                        <div class="editx-status-item">
+                            <span class="editx-status-label">[% T.configure_7 %]</span>
+                            <strong>[% IF itemtypes_text %][% T.configure_8 %][% ELSE %][% T.configure_6 %][% END %]</strong>
+                            <span class="editx-status-note">[% T.configure_9 %]</span>
+                        </div>
+                    </div>
+                </div>
+
+                [% IF saved %]
+                    <div class="alert alert-success">[% T.configure_10 %]</div>
+                [% END %]
+
+                [% FOREACH message IN messages %]
+                    <div class="alert alert-[% message.alert_class | html %]">[% message.text | html %]</div>
+                [% END %]
+
+                <form method="post" class="page-section editx-config-form">
+                    <input type="hidden" name="class" value="[% CLASS | html %]" />
+                    <input type="hidden" name="method" value="[% METHOD | html %]" />
+                    <input type="hidden" name="save" value="1" />
+                    [% INCLUDE 'csrf-token.inc' %]
+
+                    <fieldset class="rows">
+                        <legend>[% T.configure_11 %]</legend>
+                        <ol>
+                            <li>
+                                <label for="authoriser">[% T.configure_12 %]</label>
+                                <input id="authoriser" name="authoriser" type="number" min="1" value="[% procurement_settings.authoriser | html %]" />
+                                <div class="hint">[% T.configure_13 %]</div>
+                            </li>
+                            <li>
+                                <label for="allowed_locations">[% T.configure_14 %]</label>
+                                <input id="allowed_locations" name="allowed_locations" type="text" size="60" value="[% procurement_settings.allowed_locations | html %]" />
+                                <div class="hint">[% T.configure_15 %]</div>
+                                <div class="editx-reference-list"><strong>[% T.configure_16 %]</strong> [% IF locations_text %][% locations_text | html %][% ELSE %][% T.configure_17 %][% END %]</div>
+                                <div class="editx-reference-list"><strong>[% T.configure_18 %]</strong> [% IF branches_text %][% branches_text | html %][% ELSE %][% T.configure_19 %][% END %]</div>
+                            </li>
+                            <li>
+                                <label for="productform_alternative_triggers">[% T.configure_20 %]</label>
+                                <input id="productform_alternative_triggers" name="productform_alternative_triggers" type="text" size="60" value="[% procurement_settings.productform_alternative_triggers | html %]" />
+                                <div class="hint">[% T.configure_21 %]</div>
+                            </li>
+                            <li>
+                                <label for="automatch_biblios">[% T.configure_22 %]</label>
+                                <input id="automatch_biblios"
+                                       name="automatch_biblios"
+                                       type="checkbox"
+                                       value="1"
+                                       [% IF procurement_settings.automatch_biblios == 'yes' %]checked="checked"[% END %] />
+                                <div class="hint">[% T.configure_23 %]</div>
+                            </li>
+                            <li>
+                                <label for="use_finna_materialtype">[% T.configure_24 %]</label>
+                                <input id="use_finna_materialtype"
+                                       name="use_finna_materialtype"
+                                       type="checkbox"
+                                       value="1"
+                                       [% IF procurement_settings.use_finna_materialtype == 'yes' %]checked="checked"[% END %] />
+                                <div class="hint">[% T.configure_25 %]</div>
+                            </li>
+                        </ol>
+                    </fieldset>
+
+                    <fieldset class="rows">
+                        <legend>[% T.configure_26 %]</legend>
+                        <ol>
+                            <li>
+                                <label for="notification_mailto">[% T.configure_27 %]</label>
+                                <input id="notification_mailto" name="notification_mailto" type="text" size="80" value="[% procurement_settings.notification_mailto | html %]" />
+                                <div class="hint">[% T.configure_28 %]</div>
+                            </li>
+                            <li>
+                                <label for="notification_mailfrom">[% T.configure_29 %]</label>
+                                <input id="notification_mailfrom" name="notification_mailfrom" type="text" size="80" value="[% procurement_settings.notification_mailfrom | html %]" />
+                            </li>
+                        </ol>
+                    </fieldset>
+
+                    <fieldset class="rows">
+                        <legend>[% T.configure_30 %]</legend>
+                        <ol>
+                            <li>
+                                <label for="mapping_csv">[% T.configure_31 %]</label>
+                                <textarea id="mapping_csv"
+                                          name="mapping_csv"
+                                          class="editx-monospace"
+                                          cols="100"
+                                          rows="24"
+                                          wrap="off">[% mapping_csv | html %]</textarea>
+                                <div class="hint">[% T.configure_32 %]</div>
+                                <details class="editx-example">
+                                    <summary>[% T.configure_33 %]</summary>
+                                    <pre class="editx-code-example"><code>onix_code,productform,productform_alternative
+AA,YLEIS,
+BB,ESINE,
+DG,LYHYT,LYHYTHH</code></pre>
+                                </details>
+                            </li>
+                            <li>
+                                <span class="label">[% T.configure_34 %]</span>
+                                <span class="editx-reference-list">[% IF itemtypes_text %][% itemtypes_text | html %][% ELSE %][% T.configure_35 %][% END %]</span>
+                            </li>
+                        </ol>
+                    </fieldset>
+
+                    <fieldset class="action">
+                        <input type="submit" class="btn btn-primary" value="[% T.configure_36 %]" />
+                        <a class="btn btn-default" href="/cgi-bin/koha/plugins/plugins-home.pl">[% T.configure_37 %]</a>
+                    </fieldset>
+                </form>
+            </main>
+        </div>
+    </div>
+</div>
+
+[% INCLUDE 'intranet-bottom.inc' %]

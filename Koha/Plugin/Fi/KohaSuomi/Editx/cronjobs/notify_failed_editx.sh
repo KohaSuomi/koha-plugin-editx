@@ -1,15 +1,8 @@
 #!/bin/sh
-# Send e-mail notifications of failed EDItX processing to people defined in procurement-config
+# Send e-mail notifications of failed EDItX processing to people defined in plugin configuration.
 # Written by Kodo Korkalo / Koha-Suomi Oy, GNU GPL3 or later applies.
 
-# You will need to add <notifications> part to the end of your procurement-config.xml:
-
-# <notifications>
-#   <mailto>someone@somewere.com,someone@else.com</mailto>
-#   <mailfrom>someone@somewere.com</mailfrom> <!-- this is optional, [user]@[host] will be used if left unset -->
-# </notifications>
-
-die() { printf "$@\n" ; exit 1 ; }
+die() { printf '%s\n' "$*" ; exit 1 ; }
 
 # Get, set and check variables
 
@@ -21,23 +14,21 @@ test -n "$mailer" || die "No mail, apt install heirloom-mailx."
 
 test -e "$KOHA_CONF" || die "No KOHA_CONF."
 
-config_file="$(dirname $KOHA_CONF)/procurement-config.xml"
-test -e "$config_file" || die "No procurement config $config_file."
+config_loader="$(dirname "$0")/exportEditXConfig.pl"
+test -e "$config_loader" || die "No EDItX config exporter $config_loader."
+config_exports="$("$config_loader")" || die "Could not read EDItX plugin configuration."
+eval "$config_exports"
 
-mailto=$($xmllint --xpath '*/notifications/mailto/text()' $config_file 2> /dev/null)
-mailfrom=$($xmllint --xpath '*/notifications/mailfrom/text()' $config_file 2> /dev/null)
-
-export tmp_path=$($xmllint --xpath '*/settings/import_tmp_path/text()' $config_file 2> /dev/null)
-export failed_path=$($xmllint --xpath '*/settings/import_failed_path/text()' $config_file 2> /dev/null)
-export failed_archived_path=$($xmllint --xpath '*/settings/import_failed_archived_path/text()' $config_file 2> /dev/null)
-export log_path=$($xmllint --xpath 'yazgfs/config/logdir/text()' $KOHA_CONF 2> /dev/null)
+failed_loader="$(dirname "$0")/get_failed_editx_messages.pl"
+test -e "$failed_loader" || die "No EDItX failed message reporter $failed_loader."
+db_failed_messages="$("$failed_loader")" || die "Could not read EDItX failed messages from database."
 
 test -n "$mailfrom" && mailfrom="-r $mailfrom"
-test -n "$mailto" || die "No one to send notifications to in $config_file."
+test -n "$mailto" || die "No one to send notifications to in EDItX plugin configuration."
 
-test -n "$tmp_path" || die "No path to incoming EDItX messages in $config_file."
-test -n "$failed_path" || die "No path to failed EDItX messages in $config_file."
-test -n "$failed_archived_path" || die "No path to failed_archived EDItX messages in $config_file."
+test -n "$tmp_path" || die "No path to incoming EDItX messages in plugin configuration."
+test -n "$failed_path" || die "No path to failed EDItX messages in plugin configuration."
+test -n "$failed_archived_path" || die "No path to failed_archived EDItX messages in plugin configuration."
 test -n "$log_path" || die "No path to logs in $KOHA_CONF."
 
 # Get EDItX errors related to Elasticsearch and send emails
@@ -60,7 +51,7 @@ fi
 export pending_files="$(ls -1 $tmp_path/*.xml 2> /dev/null)"
 export failed_files="$(ls -1 $failed_path/*.xml 2> /dev/null)"
 
-test -z "$pending_files" && test -z "$failed_files" && exit 0 # Exit if nothing to report
+test -z "$pending_files" && test -z "$failed_files" && test -z "$db_failed_messages" && exit 0 # Exit if nothing to report
 
 (
 
@@ -122,6 +113,14 @@ test -z "$pending_files" && test -z "$failed_files" && exit 0 # Exit if nothing 
     done
 
   fi 
+
+  if test -n "$db_failed_messages"; then
+
+    printf "\nSeuraavat EDItX sanomat ovat epäonnistuneet käsittelyssä (edifact_messages, status FAILED):\n\n"
+    printf '%s\n' "$db_failed_messages"
+    printf "\nVoit ajaa nämä uudelleen EDI-sanomat-sivun \"Aja uudelleen\" -painikkeella.\n\n"
+
+  fi
 
   printf "Katso lisätietoja EDItX rajapinnan parametroinnista ja tyypillisten virhetilanteiden korjaamisesta:\n"
   printf "https://koha-suomi.fi/dokumentaatio/editx/#43-erilaisia-virhetilanteita.\n"

@@ -169,7 +169,7 @@ sub getFilenaMeFromPath {
     return $fileName;
 }
 
-sub moveToFailFolder{
+sub moveToFailFolder {
     my $self = shift;
     my $filePath = $_[0];
     my $fileName = $self->getFilenaMeFromPath($filePath);
@@ -202,17 +202,17 @@ sub fillLoadFolder {
             }
 
             $fullMessage = read_file($fullPath);
-            $self->getMsgUpdater()->add($tmpFile, $fullMessage);
+            $self->getMsgUpdater()->add($tmpFile, $fullMessage, 'PROCESSING');
 
             if (eval{XML::LibXML->new()->parse_file($fullPath)}) {
                 $self->getMsgUpdater()->findBookseller($fullPath);
             } else {
-                $self->getMsgUpdater()->update($tmpFile, 'POSTPONED');
+                $self->getMsgUpdater()->update($tmpFile, 'FAILED');
+                $self->getMsgUpdater()->addToErrorLog($tmpFile, "File is not valid XML.");
                 $self->getLogger()->logError("File: $fullPath is not valid XML, processing postponed.");
                 next;
             }
             if(!$self->fileAlreadyImported($tmpFile)){
-                $self->getMsgUpdater()->update($tmpFile, 'PROCESSING');
                 if(move($fullPath, $fullLoadPath)){
                     $self->getLogger()->log("File: $fullPath moved to $fullLoadPath for import.");
                 }
@@ -221,7 +221,8 @@ sub fillLoadFolder {
                 }
             }
             else{
-                $self->getMsgUpdater()->update($tmpFile, 'DUPLICATE');
+                $self->getMsgUpdater()->update($tmpFile, 'FAILED');
+                $self->getMsgUpdater()->addToErrorLog($tmpFile, "File already imported.");
                 if(unlink $fullPath){
                     $self->getLogger()->log("File: $fullPath already imported. Removing it.");
                 }
@@ -244,7 +245,7 @@ sub normalizePath {
     return $path;
 }
 
-sub getFileNamesInDirectory{
+sub getFileNamesInDirectory {
     my $self = shift;
     my $dirPath = $_[0];
     my @fileNames;
@@ -260,7 +261,7 @@ sub getFileNamesInDirectory{
     return @fileNames;
 }
 
-sub filterFile{
+sub filterFile {
     my $self = shift;
     my $fileName = $_[0];
     my $result = 0;
@@ -278,7 +279,7 @@ sub filterFile{
     return $result;
 }
 
-sub loadFileHash{
+sub loadFileHash {
     my $self = shift;
     my $fileName = $_[0];
     my $fileHash = $_[1];
@@ -293,7 +294,7 @@ sub loadFileHash{
     return $result;
 }
 
-sub saveFileHash{
+sub saveFileHash {
     my $self = shift;
     my $filePath = $_[0];
     my $fileName = $_[1];
