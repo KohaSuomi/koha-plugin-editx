@@ -53,6 +53,12 @@ Configure-sivun tallennus **tyhjentää** `map_productform`-taulun ja kirjoittaa
 CREATE TABLE map_productform_backup SELECT * FROM map_productform;
 ```
 
+Varmuuskopion ja viivakoodiseedin siirron (alla) voi ajaa yhdellä kertaa valmiilla skriptillä:
+
+```bash
+mysql -u koha_admin -p koha_db < UPGRADE-ks25-backup.sql
+```
+
 Palautus tarvittaessa:
 
 ```sql
