@@ -25,6 +25,7 @@ db_failed_messages="$("$failed_loader")" || die "Could not read EDItX failed mes
 
 test -n "$mailfrom" && mailfrom="-r $mailfrom"
 test -n "$mailto" || die "No one to send notifications to in EDItX plugin configuration."
+mailto_addresses="$(printf '%s\n' "$mailto" | tr ',' ' ')"
 
 test -n "$tmp_path" || die "No path to incoming EDItX messages in plugin configuration."
 test -n "$failed_path" || die "No path to failed EDItX messages in plugin configuration."
@@ -43,7 +44,7 @@ if test -n "$result"; then
     printf "\n"
     printf "Katso lisätietoja EDItX rajapinnan parametroinnista ja tyypillisten virhetilanteiden korjaamisesta:\n"
     printf "https://koha-suomi.fi/dokumentaatio/editx/#43-erilaisia-virhetilanteita.\n"
-  ) | $mailer $mailfrom -s "EDItX tilaussanomien käsittelyssä oli ongelmia (Elasticsearch)" $mailto
+  ) | $mailer $mailfrom -s "EDItX tilaussanomien käsittelyssä oli ongelmia (Elasticsearch)" $mailto_addresses
 fi
 
 # Get postponed and failed EDItX notices and send emails
@@ -125,7 +126,7 @@ test -z "$pending_files" && test -z "$failed_files" && test -z "$db_failed_messa
   printf "Katso lisätietoja EDItX rajapinnan parametroinnista ja tyypillisten virhetilanteiden korjaamisesta:\n"
   printf "https://koha-suomi.fi/dokumentaatio/editx/#43-erilaisia-virhetilanteita.\n"
 
-) | $mailer $mailfrom -s "EDItX tilaussanomien käsittelyssä oli ongelmia" $mailto
+) | $mailer $mailfrom -s "EDItX tilaussanomien käsittelyssä oli ongelmia" $mailto_addresses
 
 # All done, exit gracefully
 exit 0

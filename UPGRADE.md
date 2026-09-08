@@ -12,7 +12,7 @@ Asetukset tallennetaan nyt `plugin_data`-tauluun; `procurement-config.xml` toimi
 2. **Mailto-pilkut:** sähköpostiosoitteet on oltava pilkulla eroteltuina samalla rivillä (`osoite1@esim.fi,osoite2@esim.fi`). XML:stä kopioitu arvo menee kantaan sellaisenaan – jos pilkut puuttuvat, validointi hylkää tallennuksen.
 3. **Product form -kartta** (`map_productform`, ONIX → productform) ylläpidetään nyt Configure-sivulla CSV-muodossa.
 
-Huom: polkuasetukset (`import_*`, `log_directory`) eivät ole muokattavissa Configure-sivulla, ne tulevat edelleen XML:stä.
+Huom: polkuasetukset (`import_*`, `log_directory`) eivät ole muokattavissa Configure-sivulla, ne tulevat edelleen XML:stä. Halutessasi polut voi kopioida kantaan `cronjobs/importEditXPathsToDb.pl`-skriptillä (joka vain täyttää tyhjät rivit; `--force` ylikirjoittaa).
 
 ## 2. REST-rajapinta (uusi)
 

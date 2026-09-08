@@ -90,8 +90,8 @@ sub loadPluginData {
     my $self = shift;
 
     my @pluginKeys = (
-        map { "procurement_$_" } @PLUGIN_SETTING_KEYS,
-        map { "procurement_notification_$_" } @PLUGIN_NOTIFICATION_KEYS,
+        ( map { "procurement_$_" } @PLUGIN_SETTING_KEYS ),
+        ( map { "procurement_notification_$_" } @PLUGIN_NOTIFICATION_KEYS ),
     );
     my $placeholders = join ',', ('?') x @pluginKeys;
     my $rows = C4::Context->dbh->selectall_arrayref(
