@@ -68,7 +68,6 @@ sub new {
 ## or false if it failed.
 sub install() {
     my ( $self, $args ) = @_;
-    $self->drop_editx_contents_table();
     $self->create_map_productform();
     $self->create_aqbudgets_spend_log();
     my $dbh = C4::Context->dbh;
@@ -80,7 +79,6 @@ sub install() {
 sub upgrade {
     my ( $self, $args ) = @_;
     my $dbh = C4::Context->dbh;
-    $self->drop_editx_contents_table();
     $self->create_map_productform();
     $self->create_aqbudgets_spend_log();
     $dbh->do("INSERT IGNORE INTO plugin_data (plugin_class, plugin_key, plugin_value) VALUES ('Koha::Plugin::Fi::KohaSuomi::Editx', 'next_barcode', '1');");
@@ -189,16 +187,6 @@ sub api_namespace {
     my ( $self ) = @_;
     
     return 'kohasuomi';
-}
-
-
-sub drop_editx_contents_table {
-    my ( $self ) = @_;
-
-    my $dbh = C4::Context->dbh;
-    my $editxTable = $self->get_qualified_table_name('contents');
-
-    $dbh->do("DROP TABLE IF EXISTS `$editxTable`");
 }
 
 sub create_map_productform {

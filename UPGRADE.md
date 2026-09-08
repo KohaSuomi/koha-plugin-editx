@@ -45,6 +45,34 @@ Päivitä koha-käyttäjän crontab seuraavasti. Ainoastaan `process_edi_message
 
 ## 4. Siivous huomioitavaa
 
+### map_productform-taulun varmuuskopio (ennen Configure-tallennusta)
+
+Configure-sivun tallennus **tyhjentää** `map_productform`-taulun ja kirjoittaa sen uudelleen CSV:stä (`DELETE` + `INSERT`). Jos kartoitukset halutaan voida palauttaa, kopioi taulu ennen ensimmäistä tallennusta:
+
+```sql
+CREATE TABLE map_productform_backup SELECT * FROM map_productform;
+```
+
+Varmuuskopion ja viivakoodiseedin siirron (alla) voi ajaa yhdellä kertaa valmiilla skriptillä:
+
+```bash
+mysql -u koha_admin -p koha_db < UPGRADE-ks25-backup.sql
+```
+
+Palautus tarvittaessa:
+
+```sql
+DELETE FROM map_productform;
+INSERT INTO map_productform (onix_code, productform, productform_alternative)
+SELECT onix_code, productform, productform_alternative FROM map_productform_backup;
+```
+
+Kun kopio on vahvistettu tarpeettomaksi, sen voi pudottaa:
+
+```sql
+DROP TABLE IF EXISTS map_productform_backup;
+```
+
 ### Viivakoodiseedin siirto (ennen ensimmäistä ajomallia uudella versiolla)
 
 Tuotanto pitää viivakoodien vapaata numeroa `sequences.item_barcode_nextval`-sarakkeessa, uusi versio lukee sen `plugin_data.next_barcode`-avaimesta (`Koha::Plugin::Fi::KohaSuomi::Editx`). Jotta numerointi jatkuu katkeamatta (eikä saman päivän viivakoodit ala alusta), kopioi arvo `plugin_data`-tauluun **ennen kuin uusi versio tuottaa ensimmäisen viivakoodin**:
