@@ -20,7 +20,7 @@
         configure_18                               = "Olemassa olevat kirjastot:",
         configure_19                               = "Kirjastoja ei löytynyt.",
         configure_20                               = "Vaihtoehtoiset ProductForm-määritykset",
-        configure_21                               = "Pilkuilla erotetut sallitut hyllypaikkaikoodit, jotka käyttävät productform_alternative -mäppäystä.",
+        configure_21                               = "Pilkuilla erotetut sallitut hyllypaikkakoodit, jotka käyttävät productform_alternative -mäppäystä.",
         configure_22                               = "Automaattinen tietueiden yhdistäminen",
         configure_23                               = "Kun käytössä, EDItX-tuonti yrittää yhdistää olemassa olevan tietueen kanssa ennen uuden luomista.",
         configure_24                               = "Käytä Finna-materiaalityyppiä",
