@@ -267,9 +267,9 @@ Plugin tarjoaa REST-rajapinnan ulkopuolisille järjestelmille, jotka haluavat in
 
 ### Päätepiste
 
-| Metodi | Osoite | Kuvaus |
-| --- | --- | --- |
-| POST | `/api/v1/contrib/kohasuomi/editx` | Lisää EDItX-sanoman `edifact_messages`-tauluun statuksella `NEW` |
+| Metodi | Osoite | Kuvaus | Oikeus |
+| --- | --- | --- | --- |
+| POST | `/api/v1/contrib/kohasuomi/editx` | Lisää EDItX-sanoman `edifact_messages`-tauluun statuksella `NEW` | `acquisition: edi_manage` |
 
 ### Todennus (OAuth2)
 
