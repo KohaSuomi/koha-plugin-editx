@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use utf8;
-use Test::More tests => 14;
+use Test::More tests => 18;
 use Test::MockObject;
 use Test::MockModule;
 use FindBin qw($Bin);
@@ -445,6 +445,200 @@ subtest 'UTF-8 MARC from parseFile is preserved' => sub {
     $mock_config->mock('getUseAutomatchBiblios', sub { return 'yes'; });
 };
 
+subtest 'automatch_biblios reuses the existing biblio for a repeat order' => sub {
+    plan tests => 6;
+
+    register_vendor_edi_san( '90001', '90002' );
+
+    my ($before) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio}
+    );
+
+    my %order = (
+        ShipNoticeNumber    => '90001',
+        ProductForm         => 'BK',
+        DeliverToLocation   => 'OUPKAIK2026',
+        DestinationLocation => 'OUPKAIK2026',
+        FundNumber          => 'OUPKAIK2026',
+        ISBN                => '978-951-0-90001-6',
+        EAN                 => '9789510900016',
+        Title               => 'Automatch: toistettu tilaus',
+        MarcTitle           => 'Automatch: toistettu tilaus',
+    );
+
+    order_processor_helper( $parser->parseDb( order_mock( \%order ) ) );
+    is( scalar @error_messages, 0, 'First order processed without errors' )
+        or diag( join "\n", @error_messages );
+
+    my ($after_first) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio}
+    );
+    is( $after_first, $before + 1, 'First order created exactly one new biblio' );
+
+    my @stored_isbn = $schema->resultset('Biblioitem')
+        ->search( { biblionumber => $after_first } )->get_column('isbn');
+    is( scalar @stored_isbn, 1, 'First order created exactly one biblioitem' );
+
+    $order{ShipNoticeNumber} = '90002';
+    order_processor_helper( $parser->parseDb( order_mock( \%order ) ) );
+    is( scalar @error_messages, 0, 'Second order processed without errors' )
+        or diag( join "\n", @error_messages );
+
+    my ($after_second) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio}
+    );
+    is( $after_second, $after_first, 'Second order reused the existing biblio instead of creating a duplicate' );
+
+    my ($item_count) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COUNT(*) FROM items WHERE biblionumber = ?}, undef, $after_first
+    );
+    is( $item_count, 2, 'Both copies sit on the single merged biblio' );
+};
+
+subtest 'automatch_biblios is not blocked by a bad Seller ProductID' => sub {
+    plan tests => 4;
+
+    register_vendor_edi_san( '90005', '90006' );
+
+    my ($before) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio}
+    );
+
+    # The Seller ProductID carries a vendor-internal code rather than an ISBN.
+    # It sorts first in the candidate list, so it used to be the only value
+    # searched and every repeat order of this title duplicated.
+    my %order = (
+        ShipNoticeNumber    => '90005',
+        ProductForm         => 'BK',
+        DeliverToLocation   => 'OUPKAIK2026',
+        DestinationLocation => 'OUPKAIK2026',
+        FundNumber          => 'OUPKAIK2026',
+        ISBN                => '978-951-0-90003-0',
+        EAN                 => '9789510900030',
+        SellerID            => 'BTJ-INTERNAL-7459348',
+        Title               => 'Automatch: virheellinen myyjätunnus',
+        MarcTitle           => 'Automatch: virheellinen myyjätunnus',
+    );
+
+    order_processor_helper( $parser->parseDb( order_mock( \%order ) ) );
+    is( scalar @error_messages, 0, 'First order processed without errors' )
+        or diag( join "\n", @error_messages );
+
+    my ($after_first) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio}
+    );
+    is( $after_first, $before + 1, 'First order created one new biblio' );
+
+    $order{ShipNoticeNumber} = '90006';
+    order_processor_helper( $parser->parseDb( order_mock( \%order ) ) );
+    is( scalar @error_messages, 0, 'Second order processed without errors' )
+        or diag( join "\n", @error_messages );
+
+    my ($after_second) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio}
+    );
+    is( $after_second, $after_first, 'Bad Seller ProductID no longer blocks the match' );
+};
+
+subtest 'automatch_biblios disabled creates a separate biblio per order' => sub {
+    plan tests => 3;
+
+    $mock_config->mock( 'getUseAutomatchBiblios', sub { return 'no'; } );
+
+    register_vendor_edi_san( '90003', '90004' );
+
+    my ($before) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio}
+    );
+
+    my %order = (
+        ShipNoticeNumber    => '90003',
+        ProductForm         => 'BK',
+        DeliverToLocation   => 'OUPKAIK2026',
+        DestinationLocation => 'OUPKAIK2026',
+        FundNumber          => 'OUPKAIK2026',
+        ISBN                => '978-951-0-90002-3',
+        EAN                 => '9789510900023',
+        Title               => 'Automatch: ei yhdistämistä',
+        MarcTitle           => 'Automatch: ei yhdistämistä',
+    );
+
+    order_processor_helper( $parser->parseDb( order_mock( \%order ) ) );
+    is( scalar @error_messages, 0, 'First order processed without errors' )
+        or diag( join "\n", @error_messages );
+
+    my ($after_first) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio}
+    );
+    is( $after_first, $before + 1, 'First order created one new biblio' );
+
+    $order{ShipNoticeNumber} = '90004';
+    order_processor_helper( $parser->parseDb( order_mock( \%order ) ) );
+
+    my ($after_second) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COALESCE(MAX(biblionumber),0) FROM biblio}
+    );
+    is( $after_second, $after_first + 1, 'Second order created a second, duplicate biblio' );
+
+    $mock_config->mock( 'getUseAutomatchBiblios', sub { return 'yes'; } );
+};
+
+subtest 'getBiblioItemData matches a stored isbn against a hyphenated MARC 020$a' => sub {
+    plan tests => 3;
+
+    require Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail::CopyDetail::Booky;
+
+    my $biblio = $schema->resultset('Biblio')->create( {} );
+    $schema->resultset('Biblioitem')->create( {
+        biblionumber => $biblio->biblionumber,
+        isbn         => '9789510900009',
+    } );
+
+    my $copy_detail = Test::MockObject->new();
+    $copy_detail->set_isa('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail::CopyDetail::Booky');
+    $copy_detail->mock( 'getStandardIdentifierIndicator', sub { return ''; } );
+    $copy_detail->mock( 'getMarcStdIdentifier',          sub { return ''; } );
+    $copy_detail->mock( 'getMarcPublisherIdentifier',    sub { return ''; } );
+    $copy_detail->mock( 'getMarcPublisher',              sub { return ''; } );
+
+    my $item_detail = Test::MockObject->new();
+    $item_detail->set_isa('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail');
+    $item_detail->mock( 'getIsbns', sub { return []; } );
+
+    $copy_detail->mock( 'getIsbns', sub { return ['9789510900009'] } );
+    my @unhyphenated = $order_processor->getBiblioItemData( $copy_detail, $item_detail, undef );
+    is( $unhyphenated[0], $biblio->biblionumber, 'Lookup succeeds when 020$a matches the stored form' );
+
+    $copy_detail->mock( 'getIsbns', sub { return ['978-951-0-90000-9'] } );
+    my @hyphenated = $order_processor->getBiblioItemData( $copy_detail, $item_detail, undef );
+    is(
+        $hyphenated[0],
+        $biblio->biblionumber,
+        'Lookup succeeds when 020$a is hyphenated but biblioitems.isbn was stored without hyphens'
+    ) or diag( 'getBiblioItemData returned no match for the hyphenated ISBN' );
+
+    # Use an isbn whose unhyphenated form is stored nowhere, so exactly one row
+    # matches and the result does not depend on storage/index ordering.
+    my $hyphenated_biblio = $schema->resultset('Biblio')->create( {} );
+    $schema->resultset('Biblioitem')->create( {
+        biblionumber => $hyphenated_biblio->biblionumber,
+        isbn         => '978-951-0-90000-8',
+    } );
+
+    $copy_detail->mock( 'getIsbns', sub { return ['978-951-0-90000-8'] } );
+    my @hyphenated_stored = $order_processor->getBiblioItemData( $copy_detail, $item_detail, undef );
+    is(
+        $hyphenated_stored[0],
+        $hyphenated_biblio->biblionumber,
+        'Lookup still matches a biblioitem stored with hyphens'
+    ) or diag( 'getBiblioItemData no longer matches records stored with hyphens' );
+
+    $schema->resultset('Biblioitem')->search( { biblionumber => $biblio->biblionumber } )->delete;
+    $schema->resultset('Biblio')->search( { biblionumber => $biblio->biblionumber } )->delete;
+    $schema->resultset('Biblioitem')->search( { biblionumber => $hyphenated_biblio->biblionumber } )->delete;
+    $schema->resultset('Biblio')->search( { biblionumber => $hyphenated_biblio->biblionumber } )->delete;
+};
+
 $schema->storage->txn_rollback;
 
 
@@ -489,6 +683,10 @@ sub order_mock {
             <ProductIDType>ISBN</ProductIDType>
             <Identifier>'.($params->{ISBN} // '978-951-0-50610-3').'</Identifier>
         </ProductID>
+        '.($params->{SellerID} ? '<ProductID>
+            <ProductIDType>Seller</ProductIDType>
+            <Identifier>'.$params->{SellerID}.'</Identifier>
+        </ProductID>' : '').'
         <ItemDescription>
             <ProductForm>'.$params->{ProductForm}.'</ProductForm>
             <Title>'.($params->{Title} // 'Izak.').'</Title>
@@ -652,6 +850,21 @@ sub order_mock {
     </Summary>
 </LibraryShipNotice>
     ';
+}
+
+sub register_vendor_edi_san {
+    my @sans = @_;
+    for my $san (@sans) {
+        next if $schema->resultset('VendorEdiAccount')->find( { san => $san, id_code_qualifier => '91' } );
+        $schema->resultset('VendorEdiAccount')->create( {
+            description        => "TEST EDI Account $san",
+            vendor_id          => $vendor->id,
+            san                => $san,
+            id_code_qualifier  => '91',
+            transport          => 'FILE',
+            orders_enabled     => 1,
+        } );
+    }
 }
 
 sub order_processor_helper {

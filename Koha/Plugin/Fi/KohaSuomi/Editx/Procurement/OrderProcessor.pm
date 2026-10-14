@@ -236,7 +236,17 @@ sub getBiblioItemData {
     push @isbns, @$isbns1;
     my $isbns2 = $copyDetail->getIsbns();
     push @isbns, @$isbns2;
-    @isbns = uniq @isbns;
+
+    # EDItX stores biblioitems.isbn without hyphens (MarcHelper::fixMarcIsbn runs
+    # before the biblioitem is created), while records from other sources keep the
+    # hyphens from 020$a. Search for both forms so either one matches.
+    my @lookup;
+    for my $isbn (@isbns) {
+        my $plain = $isbn;
+        $plain =~ s/-//g;
+        push @lookup, $isbn, $plain;
+    }
+    @isbns = uniq @lookup;
     
     $stdind = $copyDetail->getStandardIdentifierIndicator();
     $ean = $copyDetail->getMarcStdIdentifier();
@@ -342,12 +352,12 @@ sub getBarcodeValue {
 
 sub getItemsByIsbns {   
     my $self = shift;
-    my @isbnArray = $_[0];
+    my @isbnArray = @_;
     my $resultSet = $self->getSchema()->resultset(Koha::Biblioitem->_type());
     my $result = -1;
 
     if(@isbnArray > 0){
-        $result = $resultSet->search({'isbn' => {'in' => @isbnArray}},{ select => [qw/isbn biblionumber biblioitemnumber/] });
+        $result = $resultSet->search({'isbn' => {'in' => \@isbnArray}},{ select => [qw/isbn biblionumber biblioitemnumber/] });
     }
     return $result;
 }
