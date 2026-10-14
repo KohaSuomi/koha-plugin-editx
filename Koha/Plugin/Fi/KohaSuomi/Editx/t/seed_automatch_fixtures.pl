@@ -1,9 +1,17 @@
 #!/usr/bin/perl
 
+BEGIN {
+    # find Koha's Perl modules
+    # test carefully before changing this
+    use FindBin;
+    eval { require "$FindBin::Bin/../kohalib.pl" };
+}
 use Modern::Perl;
 use utf8;
 use DateTime;
 use Getopt::Long;
+use Koha::Plugins;
+use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 use Business::ISBN;
 
 =head1 NAME
