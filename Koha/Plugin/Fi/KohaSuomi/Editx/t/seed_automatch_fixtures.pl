@@ -13,6 +13,9 @@ use Getopt::Long;
 use Koha::Plugins;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 use Business::ISBN;
+use MARC::Field;
+use MARC::File::XML ( BinaryEncoding => 'utf8', RecordFormat => 'MARC21' );
+use MARC::Record;
 
 =head1 NAME
 
@@ -217,6 +220,36 @@ sub sql_literal {
 }
 
 # ------------------------------------------------------------------- fixtures
+
+# A biblio row without a biblio_metadata row is not a record Koha can display:
+# Koha::Biblio::metadata hands the DBIC row straight to
+# Koha::Biblio::Metadata->_new_from_dbic, which dies with
+# "DBIC result _type  isn't of the _type BiblioMetadata" when there is none.
+# That kills catalogue/detail.pl, so the stored fixtures get a real MARC record.
+sub build_marc_record {
+    my ($params) = @_;
+
+    my $year      = $params->{year} // DateTime->now->year;
+    my $field008  = sprintf( '%-40s', "240315s$year    fi                  fin" );
+
+    my $record = MARC::Record->new();
+    $record->append_fields(
+        MARC::Field->new( '001', $params->{control001} ),
+        MARC::Field->new( '003', 'FI-Test' ),
+        MARC::Field->new( '005', DateTime->now->strftime('%Y%m%d%H%M%S') . '.0' ),
+        MARC::Field->new( '008', $field008 ),
+    );
+
+    $record->append_fields(
+        MARC::Field->new( '020', '', '', a => $params->{isbn} ),
+        MARC::Field->new( '100', '1', '', a => $params->{author} ),
+        MARC::Field->new( '245', '1', '0', a => $params->{title} ),
+        MARC::Field->new( '260', '', '', b => $params->{publisher}, c => $year ),
+        MARC::Field->new( '942', '', '', c => $params->{productform} ),
+    );
+
+    return $record;
+}
 
 sub generate_xml {
     my ($params) = @_;
@@ -544,12 +577,23 @@ sub ensure_infrastructure {
 # ------------------------------------------------------------------- fixtures
 
 sub seed_stored_records {
+    require Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor;
+
+    my $order_processor = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor->new;
+    my $productform = $order_processor->getProductForm('BK') || 'BK';
+
     print "\nPre-existing records the automatch must find:\n";
 
     for my $record (@STORED_RECORDS) {
         my $biblionumber = scalar_value('SELECT biblionumber FROM biblio WHERE title = ?', $record->{title});
 
         if ($biblionumber) {
+            my $has_metadata
+                = scalar_value('SELECT COUNT(*) FROM biblio_metadata WHERE biblionumber = ?', $biblionumber);
+            die
+                "biblionumber $biblionumber already exists without a MARC record, so the staff\n"
+                . "catalogue would fail on it. Remove it first (--clear) and seed again.\n" if !$has_metadata;
+
             say_ok("$record->{key}: $record->{isbn} already on biblionumber $biblionumber");
         }
         else {
@@ -563,10 +607,40 @@ sub seed_stored_records {
                 }
             )->biblionumber;
 
-            $schema->resultset('Biblioitem')->create(
+            my $marc = build_marc_record(
+                {
+                    control001  => $record->{isbn},
+                    isbn        => $record->{isbn},
+                    title       => $record->{title},
+                    author      => $record->{author},
+                    publisher   => 'EDItX Automatch Press',
+                    productform => $productform,
+                }
+            );
+
+            $schema->resultset('BiblioMetadata')->create(
                 {
                     biblionumber => $biblionumber,
-                    isbn         => $record->{isbn},
+                    format       => 'marcxml',
+                    schema       => 'MARC21',
+                    metadata     => $marc->as_xml('UTF-8', 'MARC21'),
+                }
+            );
+
+            $schema->resultset('Biblioitem')->create(
+                {
+                    biblionumber      => $biblionumber,
+                    isbn              => $record->{isbn},
+                    itemtype          => $productform,
+                    publishercode     => 'EDItX Automatch Press',
+                    publicationyear   => DateTime->now->year,
+                    editionstatement  => '',
+                    volumedesc        => '',
+                    collectiontitle   => '',
+                    notes             => $record->{note},
+                    pages             => '',
+                    place             => '',
+                    size              => '',
                 }
             );
 
@@ -741,6 +815,9 @@ sub clear_fixtures {
         ],
         [   "DELETE FROM biblioitems
              WHERE biblionumber IN (SELECT biblionumber FROM biblio WHERE title IN ($biblio_titles))" => 'biblioitems'
+        ],
+        [   "DELETE FROM biblio_metadata
+             WHERE biblionumber IN (SELECT biblionumber FROM biblio WHERE title IN ($biblio_titles))" => 'biblio_metadata'
         ],
         [   "DELETE FROM biblio WHERE title IN ($biblio_titles)" => 'biblio'
         ],
