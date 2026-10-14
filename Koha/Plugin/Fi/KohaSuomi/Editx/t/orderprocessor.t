@@ -588,7 +588,8 @@ subtest 'getBiblioItemData matches a stored isbn against a hyphenated MARC 020$a
 
     require Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail::CopyDetail::Booky;
 
-    my $biblio = $schema->resultset('Biblio')->create( {} );
+    # biblio.datecreated is NOT NULL with no default, so it must be supplied.
+    my $biblio = $schema->resultset('Biblio')->create( { datecreated => '2026-01-01' } );
     $schema->resultset('Biblioitem')->create( {
         biblionumber => $biblio->biblionumber,
         isbn         => '9789510900009',
@@ -619,7 +620,7 @@ subtest 'getBiblioItemData matches a stored isbn against a hyphenated MARC 020$a
 
     # Use an isbn whose unhyphenated form is stored nowhere, so exactly one row
     # matches and the result does not depend on storage/index ordering.
-    my $hyphenated_biblio = $schema->resultset('Biblio')->create( {} );
+    my $hyphenated_biblio = $schema->resultset('Biblio')->create( { datecreated => '2026-01-01' } );
     $schema->resultset('Biblioitem')->create( {
         biblionumber => $hyphenated_biblio->biblionumber,
         isbn         => '978-951-0-90000-8',
@@ -644,13 +645,13 @@ subtest 'getBiblioItemData matches stored and ordered 10- and 13-digit ISBN form
 
     require Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail::CopyDetail::Booky;
 
-    my $ten_digit = $schema->resultset('Biblio')->create( {} );
+    my $ten_digit = $schema->resultset('Biblio')->create( { datecreated => '2026-01-01' } );
     $schema->resultset('Biblioitem')->create( {
         biblionumber => $ten_digit->biblionumber,
         isbn         => '9513111458',
     } );
 
-    my $thirteen_digit = $schema->resultset('Biblio')->create( {} );
+    my $thirteen_digit = $schema->resultset('Biblio')->create( { datecreated => '2026-01-01' } );
     $schema->resultset('Biblioitem')->create( {
         biblionumber => $thirteen_digit->biblionumber,
         isbn         => '9780306406157',
