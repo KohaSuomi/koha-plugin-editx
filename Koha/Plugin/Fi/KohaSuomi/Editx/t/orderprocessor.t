@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use utf8;
-use Test::More tests => 18;
+use Test::More tests => 19;
 use Test::MockObject;
 use Test::MockModule;
 use FindBin qw($Bin);
@@ -637,6 +637,72 @@ subtest 'getBiblioItemData matches a stored isbn against a hyphenated MARC 020$a
     $schema->resultset('Biblio')->search( { biblionumber => $biblio->biblionumber } )->delete;
     $schema->resultset('Biblioitem')->search( { biblionumber => $hyphenated_biblio->biblionumber } )->delete;
     $schema->resultset('Biblio')->search( { biblionumber => $hyphenated_biblio->biblionumber } )->delete;
+};
+
+subtest 'getBiblioItemData matches stored and ordered 10- and 13-digit ISBN forms' => sub {
+    plan tests => 5;
+
+    require Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail::CopyDetail::Booky;
+
+    my $ten_digit = $schema->resultset('Biblio')->create( {} );
+    $schema->resultset('Biblioitem')->create( {
+        biblionumber => $ten_digit->biblionumber,
+        isbn         => '9513111458',
+    } );
+
+    my $thirteen_digit = $schema->resultset('Biblio')->create( {} );
+    $schema->resultset('Biblioitem')->create( {
+        biblionumber => $thirteen_digit->biblionumber,
+        isbn         => '9780306406157',
+    } );
+
+    my $copy_detail = Test::MockObject->new();
+    $copy_detail->set_isa('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail::CopyDetail::Booky');
+    $copy_detail->mock( 'getStandardIdentifierIndicator', sub { return ''; } );
+    $copy_detail->mock( 'getMarcStdIdentifier',          sub { return ''; } );
+    $copy_detail->mock( 'getMarcPublisherIdentifier',    sub { return ''; } );
+    $copy_detail->mock( 'getMarcPublisher',              sub { return ''; } );
+
+    my $item_detail = Test::MockObject->new();
+    $item_detail->set_isa('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::LibraryShipNotice::ItemDetail');
+    $item_detail->mock( 'getIsbns', sub { return []; } );
+
+    $copy_detail->mock( 'getIsbns', sub { return ['9789513111458'] } );
+    my @from_thirteen = $order_processor->getBiblioItemData( $copy_detail, $item_detail, undef );
+    is(
+        $from_thirteen[0],
+        $ten_digit->biblionumber,
+        'Ordered 13-digit ISBN matches a biblio stored with the 10-digit ISBN'
+    ) or diag( 'no match for an ordered 9789513111458 against a stored 9513111458' );
+
+    $copy_detail->mock( 'getIsbns', sub { return ['0306406152'] } );
+    my @from_ten = $order_processor->getBiblioItemData( $copy_detail, $item_detail, undef );
+    is(
+        $from_ten[0],
+        $thirteen_digit->biblionumber,
+        'Ordered 10-digit ISBN matches a stored 13-digit ISBN once the check digit is recomputed'
+    ) or diag( 'no match for an ordered 0306406152 against a stored 9780306406157' );
+
+    $copy_detail->mock( 'getIsbns', sub { return ['9780306406152'] } );
+    my @wrong_check = $order_processor->getBiblioItemData( $copy_detail, $item_detail, undef );
+    isnt(
+        $wrong_check[0],
+        $thirteen_digit->biblionumber,
+        'Naive 978-prefix with a wrong check digit is not force matched'
+    );
+
+    $copy_detail->mock( 'getIsbns', sub { return ['BTJ-INTERNAL-7459348'] } );
+    my @not_an_isbn = $order_processor->getBiblioItemData( $copy_detail, $item_detail, undef );
+    is( scalar @not_an_isbn, 0, 'Seller ProductID that is not an ISBN is not converted into one' );
+
+    $copy_detail->mock( 'getIsbns', sub { return ['9791090636071'] } );
+    my @prefix_979 = $order_processor->getBiblioItemData( $copy_detail, $item_detail, undef );
+    is( scalar @prefix_979, 0, '979-prefixed ISBN has no 10-digit form and matches nothing here' );
+
+    $schema->resultset('Biblioitem')->search( { biblionumber => $ten_digit->biblionumber } )->delete;
+    $schema->resultset('Biblio')->search( { biblionumber => $ten_digit->biblionumber } )->delete;
+    $schema->resultset('Biblioitem')->search( { biblionumber => $thirteen_digit->biblionumber } )->delete;
+    $schema->resultset('Biblio')->search( { biblionumber => $thirteen_digit->biblionumber } )->delete;
 };
 
 $schema->storage->txn_rollback;

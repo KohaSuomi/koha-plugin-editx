@@ -16,6 +16,7 @@ use C4::Biblio qw( GetFrameworkCode ModBiblio ModZebra );
 use Koha::DateUtils;
 use C4::Barcodes::ValueBuilder;
 use utf8;
+use Business::ISBN;
 use List::MoreUtils qw(uniq);
 use Data::Dumper;
 use YAML::XS;
@@ -237,14 +238,14 @@ sub getBiblioItemData {
     my $isbns2 = $copyDetail->getIsbns();
     push @isbns, @$isbns2;
 
-    # EDItX stores biblioitems.isbn without hyphens (MarcHelper::fixMarcIsbn runs
-    # before the biblioitem is created), while records from other sources keep the
-    # hyphens from 020$a. Search for both forms so either one matches.
+    # biblioitems.isbn is stored without hyphens (MarcHelper::fixMarcIsbn runs
+    # before the biblioitem is created) and, for older records, may hold a
+    # 10-digit ISBN while the order carries the 13-digit form (or vice versa).
+    # Look up every candidate and every equivalent form so any stored
+    # representation matches.
     my @lookup;
     for my $isbn (@isbns) {
-        my $plain = $isbn;
-        $plain =~ s/-//g;
-        push @lookup, $isbn, $plain;
+        push @lookup, $self->getIsbnLookupForms($isbn);
     }
     @isbns = uniq @lookup;
     
@@ -272,6 +273,33 @@ sub getBiblioItemData {
     }
 
     return @result;
+}
+
+sub getIsbnLookupForms {
+    my $self = shift;
+    my ($isbn) = @_;
+
+    my @forms;
+    return @forms unless defined $isbn && $isbn ne '';
+
+    push @forms, $isbn;
+
+    my $plain = $isbn;
+    $plain =~ s/[-\s]//g;
+    push @forms, $plain if $plain ne $isbn;
+
+    my $isbnObject = Business::ISBN->new($plain);
+    if ($isbnObject && eval { $isbnObject->is_valid }) {
+        for my $method (qw( as_isbn13 as_isbn10 )) {
+            my $converted = eval { $isbnObject->$method };
+            next unless $converted;
+            my $value = $converted->as_string;
+            $value =~ s/-//g;
+            push @forms, $value;
+        }
+    }
+
+    return @forms;
 }
 
 sub getFundYear {  
