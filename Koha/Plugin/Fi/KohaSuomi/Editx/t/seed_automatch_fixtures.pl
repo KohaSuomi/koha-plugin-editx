@@ -126,7 +126,7 @@ my @STORED_RECORDS = (
     },
     {
         key      => 'AM02',
-        isbn     => '9789510506103',
+        isbn     => '9789519900018',
         title    => 'AM02 stored record, 13-digit isbn',
         author   => 'Stored, Thirteen',
         note     => 'order carries it as the second ProductID',
@@ -151,10 +151,10 @@ my @SCENARIOS = (
         expect_key   => 'AM02',
         product_ids  => [
             { type => 'Seller', id => 'AM-NO-MATCH-0001' },
-            { type => 'EAN13',  id => '9789510506103' },
+            { type => 'EAN13',  id => '9789519900018' },
         ],
-        marc001      => '9789510506103',
-        marc020      => '9510506109',
+        marc001      => '9789519900018',
+        marc020      => '9519900012',
         biblio_title => 'AM02 order title',
     },
     {
@@ -593,6 +593,70 @@ sub check_isbn_pairs {
     }
 }
 
+sub check_isbn_collisions {
+    require Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor;
+
+    print "\nStored ISBN collisions:\n";
+
+    my @problems;
+
+    for my $record (@STORED_RECORDS) {
+        # Ignore the row we created ourselves on a previous run.
+        my $mine = scalar_value( 'SELECT biblionumber FROM biblio WHERE title = ?', $record->{title} );
+
+        my $sql = 'SELECT biblionumber FROM biblioitems WHERE isbn = ?';
+        my @bind = ( $record->{isbn} );
+        if ($mine) {
+            $sql .= ' AND biblionumber <> ?';
+            push @bind, $mine;
+        }
+
+        my @found = @{ $dbh->selectcol_arrayref( $sql, undef, @bind ) };
+        if (@found) {
+            say_bad("$record->{key}: $record->{isbn} is already on biblionumber " . join( ', ', @found ) );
+            push @problems, $record->{key};
+        }
+        else {
+            say_ok("$record->{key}: $record->{isbn} is not used by any other record");
+        }
+    }
+
+    # A scenario that expects a new biblio must not be able to match anything,
+    # including records that were already in the database.
+    for my $scenario (@SCENARIOS) {
+        next if $scenario->{expect} eq 'reuse';
+
+        my @forms;
+        for my $identifier ( map { $_->{id} } @{ $scenario->{product_ids} } ) {
+            push @forms,
+                Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor->getIsbnLookupForms($identifier);
+        }
+        push @forms,
+            Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor->getIsbnLookupForms( $scenario->{marc020} );
+
+        my %seen;
+        my @hits;
+        for my $form ( grep { defined && length && !$seen{$_}++ } @forms ) {
+            my $rows = $dbh->selectcol_arrayref( 'SELECT biblionumber FROM biblioitems WHERE isbn = ?', undef, $form );
+            push @hits, "$form => @{$rows}" if @{$rows};
+        }
+
+        if (@hits) {
+            say_bad("$scenario->{key}: expects a new biblio but these forms already exist: " . join( '; ', @hits ) );
+            push @problems, $scenario->{key};
+        }
+        else {
+            say_ok("$scenario->{key}: no stored record matches any of its lookup forms");
+        }
+    }
+
+    die
+        "\nFix the fixture ISBNs before seeding: @problems\n"
+        . "getItemsByIsbns returns every match and getBiblioItemData takes an arbitrary\n"
+        . "one, so an ISBN that already exists makes the outcome depend on row order.\n"
+        if @problems;
+}
+
 sub seed_messages {
     print "\nEDItX messages (status NEW):\n";
 
@@ -637,33 +701,35 @@ sub clear_fixtures {
     print "Clearing $FIXTURE_PREFIX fixtures...\n";
 
     my @keys = map { $_->{key} } @SCENARIOS;
-    my @titles = ( map { $_->{title} } @STORED_RECORDS, map { $_->{biblio_title} } @SCENARIOS );
+
+    # These two maps have to be separate: folding the second one into the first
+    # one's LIST would apply the first block to the strings it returns.
+    my @stored_titles   = map { $_->{title} } @STORED_RECORDS;
+    my @scenario_titles = map { $_->{biblio_title} } @SCENARIOS;
+    my @titles = ( @stored_titles, @scenario_titles );
 
     my $basket_names = join ', ', map { sql_literal($_) } @keys;
     my $biblio_titles = join ', ', map { sql_literal($_) } @titles;
-    my $message_like = "'" . $FIXTURE_PREFIX . "\\_%'";
+
+    my $order_clause = "(SELECT ordernumber FROM aqorders
+                          WHERE basketno IN (SELECT basketno FROM aqbasket WHERE basketname IN ($basket_names)))";
+
+    # Collect the items before the orders go away. Picking them by biblio is not
+    # enough: a scenario that matched somebody else's record puts its item there.
+    my $itemnumbers = $dbh->selectcol_arrayref("SELECT itemnumber FROM aqorders_items WHERE ordernumber IN $order_clause");
+    my $item_clause = @{$itemnumbers} ? 'itemnumber IN (' . join( ', ', @{$itemnumbers} ) . ')' : '1 = 0';
 
     # Every subquery below targets a different table, otherwise MySQL refuses
     # the statement with "You can't specify target table for update in FROM".
     my @statements = (
-        [   "DELETE ee FROM edifact_errors ee
-                INNER JOIN edifact_messages em ON ee.message_id = em.id
-             WHERE em.message_type = 'EDItX' AND em.filename LIKE $message_like" => 'edifact_errors'
+        [   "DELETE FROM aqorders_items WHERE ordernumber IN $order_clause" => 'aqorders_items'
         ],
-        [   "DELETE FROM edifact_messages
-             WHERE message_type = 'EDItX' AND filename LIKE $message_like" => 'edifact_messages'
-        ],
-        [   "DELETE FROM aqorders_items
-             WHERE ordernumber IN (SELECT ordernumber FROM aqorders
-                                   WHERE basketno IN (SELECT basketno FROM aqbasket WHERE basketname IN ($basket_names)))" => 'aqorders_items'
+        [   "DELETE FROM items WHERE $item_clause" => 'items'
         ],
         [   "DELETE FROM aqorders
              WHERE basketno IN (SELECT basketno FROM aqbasket WHERE basketname IN ($basket_names))" => 'aqorders'
         ],
         [   "DELETE FROM aqbasket WHERE basketname IN ($basket_names)" => 'aqbasket'
-        ],
-        [   "DELETE FROM items
-             WHERE biblionumber IN (SELECT biblionumber FROM biblio WHERE title IN ($biblio_titles))" => 'items'
         ],
         [   "DELETE FROM biblioitems
              WHERE biblionumber IN (SELECT biblionumber FROM biblio WHERE title IN ($biblio_titles))" => 'biblioitems'
@@ -675,9 +741,20 @@ sub clear_fixtures {
     for my $statement (@statements) {
         my ($sql, $table) = @$statement;
         my $rows = $dbh->do($sql);
-        $rows = 0 unless defined $rows;
+        $rows = defined $rows ? $rows + 0 : 0;    # "0E0" is truthy as a string
         say_ok("$table: removed $rows row(s)") if $rows;
     }
+
+    # Done per key with a bound pattern: 'AM\_%' would mean the literal "AM_",
+    # and the filenames are AM01_<timestamp>.
+    my $removed = 0;
+    for my $key (@keys) {
+        $removed += $dbh->do(
+            "DELETE FROM edifact_messages WHERE message_type = 'EDItX' AND filename LIKE ?",
+            undef, "$key\\_%"
+        ) || 0;
+    }
+    say_ok("edifact_messages: removed $removed row(s)") if $removed;
 
     print "Done. The infrastructure (vendor, fund, branch, location) was kept.\n";
 }
@@ -791,6 +868,7 @@ say '====================================================';
 ensure_infrastructure();
 check_config();
 check_isbn_pairs();
+check_isbn_collisions();
 seed_stored_records();
 seed_messages();
 
