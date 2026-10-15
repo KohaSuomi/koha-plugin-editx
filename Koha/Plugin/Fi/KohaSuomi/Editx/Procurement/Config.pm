@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 package Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 
-use XML::Simple;
+use XML::LibXML;
 use File::Basename;
 use Data::Dumper;
 use C4::Context;
@@ -40,10 +40,38 @@ sub loadConfigXml{
     my $xmlPath = $self->getConfigXmlPath();
 
     if( -e $xmlPath ){
-        my $simple = XML::Simple->new;
-        $configs = $simple->XMLin($xmlPath);
+        my $doc = XML::LibXML->new->load_xml( location => $xmlPath );
+        $configs = _elementToStructure( $doc->documentElement );
     }
     return $configs;
+}
+
+sub _elementToStructure {
+    my ($element) = @_;
+    my %structure;
+
+    foreach my $child ( $element->childNodes ) {
+        next unless $child->nodeType == XML_ELEMENT_NODE;
+        my $name = $child->localname;
+        my $value = _nodeToValue($child);
+        if ( exists $structure{$name} ) {
+            $structure{$name} = [ $structure{$name} ]
+                unless ref $structure{$name} eq 'ARRAY';
+            push @{ $structure{$name} }, $value;
+        }
+        else {
+            $structure{$name} = $value;
+        }
+    }
+
+    return \%structure;
+}
+
+sub _nodeToValue {
+    my ($element) = @_;
+    my ($hasElementChild) = grep { $_->nodeType == XML_ELEMENT_NODE } $element->childNodes;
+    return _elementToStructure($element) if $hasElementChild;
+    return $element->textContent;
 }
 
 sub getConfigXmlPath{

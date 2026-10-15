@@ -3,7 +3,6 @@ package Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser;
 
 use Modern::Perl;
 use Moose;
-use XML::Simple;
 use XML::LibXML;
 use XML::LibXML::XPathContext;
 use File::Slurp;

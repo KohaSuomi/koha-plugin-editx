@@ -3,7 +3,6 @@ package Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFacto
 
 use Modern::Perl;
 use Moose;
-use XML::Simple;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 use Class::Load ':all';
 use Data::Dumper;

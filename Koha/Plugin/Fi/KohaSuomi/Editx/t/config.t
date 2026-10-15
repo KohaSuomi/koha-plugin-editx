@@ -1,7 +1,8 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Test::More tests => 3;
+use utf8;
+use Test::More tests => 4;
 use Test::MockObject;
 use Test::MockModule;
 use FindBin qw($Bin);
@@ -108,6 +109,50 @@ subtest 'loadPluginData - notification keys are not double-prefixed' => sub {
         'db@example.com',
         'Uses DB value for notification setting instead of falling back to XML'
     );
+};
+
+subtest 'loadConfigXml parses procurement-config.xml with XML::LibXML' => sub {
+    plan tests => 5;
+    require File::Temp;
+    my $dir = File::Temp->newdir();
+    my $confPath = "$dir/procurement-config.xml";
+
+    open my $fh, '>:encoding(UTF-8)', $confPath or die "Cannot write $confPath: $!";
+    print $fh <<'XML';
+<?xml version="1.0" encoding="UTF-8"?>
+<data>
+    <settings>
+        <authoriser>nnnnnn</authoriser> <!-- a borrowers id -->
+        <allowed_locations>LN,AIK,MUS,OU</allowed_locations>
+        <empty_setting/>
+    </settings>
+    <notifications>
+        <mailto>a@b.fi, älä@b.fi</mailto>
+    </notifications>
+</data>
+XML
+    close $fh;
+
+    local $ENV{KOHA_CONF} = "$dir/koha-conf.xml";
+    my $config = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config->new();
+
+    my $parsed = $config->loadConfigXml();
+    is( $parsed->{settings}->{authoriser}, 'nnnnnn', 'Reads a scalar setting' );
+    is(
+        $parsed->{notifications}->{mailto},
+        'a@b.fi, älä@b.fi',
+        'Reads notifications and keeps UTF-8 characters'
+    );
+    is( $parsed->{settings}->{empty_setting}, '', 'Empty element becomes an empty string' );
+
+    unlink $confPath;
+    is_deeply( $config->loadConfigXml(), {}, 'Missing config file returns an empty hash' );
+
+    open my $broken, '>', $confPath or die "Cannot write $confPath: $!";
+    print $broken '<data><settings></data>';
+    close $broken;
+    eval { $config->loadConfigXml() };
+    like( $@, qr/parser error/, 'Invalid XML dies instead of being silently ignored' );
 };
 
 done_testing();
