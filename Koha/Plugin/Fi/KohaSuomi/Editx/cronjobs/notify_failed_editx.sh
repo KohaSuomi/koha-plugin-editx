@@ -14,12 +14,15 @@ test -n "$mailer" || die "No mail, apt install heirloom-mailx."
 
 test -e "$KOHA_CONF" || die "No KOHA_CONF."
 
-config_loader="$(dirname "$0")/exportEditXConfig.pl"
+# Need to de-reference $0 if it's a symlink for config exporter to work
+test -h "$0" && script_realname="$(readlink -f "$0")" || script_realname="$0"
+
+config_loader="$(dirname "$script_realname")/exportEditXConfig.pl"
 test -e "$config_loader" || die "No EDItX config exporter $config_loader."
 config_exports="$("$config_loader")" || die "Could not read EDItX plugin configuration."
 eval "$config_exports"
 
-failed_loader="$(dirname "$0")/get_failed_editx_messages.pl"
+failed_loader="$(dirname "$script_realname")/get_failed_editx_messages.pl"
 test -e "$failed_loader" || die "No EDItX failed message reporter $failed_loader."
 db_failed_messages="$("$failed_loader")" || die "Could not read EDItX failed messages from database."
 
