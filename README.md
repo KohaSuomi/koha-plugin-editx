@@ -2,9 +2,22 @@
 
 Tämä plugin lisää EDItX tuen Kohaan.
 
+## Käsittelyketju
+
+Sanoma kulkee palvelimella kahdessa vaiheessa, ja vaiheiden väliin jää aineistontoimittajan tietokantaan (`edifact_messages`). Molemmat vaiheet ovat ajastettuja cronjobia.
+
+1. **Aineistontoimittaja -> palvelin.** Toimittaja siirtää XML-sanoman SFTP:llä hakemistoon `import_tmp_path`.
+2. **`runEditXImport.pl`** (cron) lukee `import_tmp_path`-hakemiston `*.xml`-tiedostot. Se tarkistaa sanoman duplikaattisuuden, etsii myyjän `vendor_edi_accounts`-taulusta sanoman SAN-tunnusta ja tallentaa sanoman `edifact_messages`-tauluun: `message_type='EDItX'`, `status='NEW'`. Tiedosto siirretään onnistuneesti `import_archive_path`-hakemistoon. Tyhjä, duplikaatti- tai virheellinen tiedosto päätyy `import_failed_path`-hakemistoon.
+3. **`process_edi_messages.pl`** (cron) poimii `status='NEW'`-rivit käsittelyyn (katso [Aikataulut](#sanomien-käsittelyn-ja-virhehuomautusten-ajastus)). Se jäsentää sanoman, valitsee sanoman myyjän perusteella olevan käsittelijän ja luo tilauksen sekä siitä kuvailu- ja esinetiedot. Onnistuessa tilaksi asetetaan `OK`, virrheessä `FAILED` ja virhe kirjoitetaan `edifact_errors`-tauluun.
+4. **Seuraus.** Käsittelyn jälkeen tilaa voi seurata Kohan EDI-sanomat-sivulla (`acqui/edifactmsgs.pl`). Epäonnistuneet sanomat on mahdollista ajaa uudelleen sivun **Aja uudelleen** -painikkeella.
+
+REST-rajapinta kiertää vaiheet 1-2 ohi ja kirjoittaa sanoman suoraan `edifact_messages`-tauluun tilalla `NEW`, eli käsittely alkaa vaiheesta 3.
+
+Sanoman tunnistee taulussa tiedostonimi, joka muodostetaan kentistä `ShipNoticeNumber` ja `IssueDateTime` (REST-rajapinnalla käyttäjätunnus etuliitteenä). Tämä toimii myös duplikaattien tunnistamisena: sama sanoma hylätään toistamiseksi.
+
 ## Käyttöönoton määritykset Koha-palvelimella
 
-Koha-Suomessa uudet kontainerit muodostetaan konew -skriptillä. Pääosa asetuksista tulee uuden kontin muodostamisvaiheessa valmiina. Erikseen täytyy luoda vielä SFTP tiedonsiirtoja varten tunnukset sekä päivittää rajapinnan konfiguraatioon käytettävä procurement-config.xml
+Koha-Suomessa uudet kontainerit muodostetaan konew -skriptillä. Pääosa asetuksista tulee uuden kontin muodostamisvaiheessa valmiina. Erikseen täytyy luoda vielä SFTP tiedonsiirtoja varten tunnukset sekä määrittää pluginin asetukset kohdassa [Rajapinnan konfigurointi](#rajapinnan-konfigurointi) kuvatulla tavalla.
 
 ## SFTP-tunnukset
 
@@ -12,49 +25,115 @@ SFTP tunnukset ovat muotoa [k]-[r]-editx, mutta jos kyseessä on tuotantotunnus 
 
 ## Rajapinnan konfigurointi
 
-Konfiguraatio on tiedostossa /etc/koha/procurement_config.xml:
+Asetukset tallennetaan `plugin_data`-tauluun ja luetaan sieltä. Ne ylläpidetään kohdassa [Configure](#configure-näkymä) kuvatulla sivulla (Työkalut → Liitännäiset → EDItX-plugin → Määritä).
 
-```
-<?xml version="1.0"?>
-<data>
-    <settings>
-        <import_tmp_path>/home/koha/koha-dev/var/spool/editx/tmp</import_tmp_path> <!-- The folder where files should be first put. The Integrations external entrypoint -->
-        <import_load_path>/home/koha/koha-dev/var/spool/editx/load</import_load_path> <!-- The path from where the script reads files to import -->
-        <import_archive_path>/home/koha/koha-dev/var/spool/editx/archive</import_archive_path> <!-- The path where files are archived after succesfull import-->
-        <import_failed_path>/home/koha/koha-dev/var/spool/editx/fail</import_failed_path> <!-- The path where files are archived if something fails during import-->
-        <import_failed_archived_path>/home/koha/koha-dev/var/spool/editx/failed_archived</import_failed_archived_path> <!-- The path where files are archived if something fails during import-->
-        <authoriser>nnnnnn</authoriser> <!-- A borrowers id (borrowernumber) used in import, change this! -->
-        <allowed_locations>LN,AIK,MUS,OU</allowed_locations>
-        <productform_alternative_triggers>LAP</productform_alternative_triggers> <!-- The shelving location that is found in fundnumber, used for assigning productform_alternative from db map_productform-->
-        <automatch_biblios>yes</automatch_biblios> <!-- Set to 'no' if you want to create a new biblio and biblioitem on every order. -->
-    </settings>
-    <notifications>
-        <mailto>osoite1@ouka.fi,osoite2@ouka.fi,osoite3@ouka.fi</mailto> <!-- comma separated list of email-addresses to send error reports to -->
-    </notifications>
-</data>
-```
+**XML-tiedosto `procurement-config.xml` on vanhentunut** eikä sitä pidä enää perustaa uusiin asennuksiin.
 
-Polkuihin ei yleensä tarvitse koskea, oletuspolut toimivat jos käyttöönotto tehdään tässä dokumentissa kuvatulla tavalla. Authoriser on Kohassa määritelty EditX-tilausten luoja (Kohaan tarkoitusta varten lisätyn editx-käyttäjän borrowernumber) ja allowed_locations kertoo mille hyllypaikoille aineistoa voi hankkia. Kuvailutietueiden tuplakontrollin voi halutessaan kytkeä pois muuttamalla automatch_biblios asetukseksi no. Silloin tilatuista nimekkeistä muodostuu aina uudet kuvailutietueet omine niteineen.
+Vanha XML-tiedosto toimii yhä varalla, jotta olemassa olevat asennukset eivät rikkoudu: kun `plugin_data`-rivin arvo on tyhjä, arvo kopioidaan XML-tiedostosta kantaan ensimmäisellä lukukerralla, ja sitä käytetään siitä eteenpäin. Tyhjä kanta-arvo ei siis tarkoita "ei asetusta" vaan "haetaan XML:stä".
 
-Notifications-osan mailto-elementissä määritellään sähköpostitse lähetettävien virhesanomien vastaanottajat.
+### Mistä kukin asetus tulee
+
+| Asetus | Lähde |
+| --- | --- |
+| `authoriser`, `allowed_locations`, `productform_alternative_triggers`, `automatch_biblios`, `use_finna_materialtype`, `notifications/mailto`, `notifications/mailfrom` | Configure-näkymä |
+| `import_tmp_path`, `import_archive_path`, `import_failed_path`, `import_failed_archived_path` | Vain XML-tiedostosta. Nämä ovat viimeiset asetukset, joiden vuoksi tiedostoa ei voi vielä poistaa. |
+| `log_directory` | Lasketaan aina: `<logdir>/editx`. Ei asetettavissa. |
+| `import_load_path` | Perinnöisesti mukana, ei enää käytössä (ks. alla). |
+
+Polut saa halutessaan kopioimaan tietokantaan skriptillä `cronjobs/importEditXPathsToDb.pl`, joka täyttää vain tyhjät rivit (`--force` ylikirjoittaa). Tämän jälkeen polut luetaan kannasta eikä tiedostoa enää tarvita niiden osalta.
+
+### Configure-näkymä
+
+Asetukset tallennetaan kantaan **Työkalut → Liitännäiset → EDItX-plugin → Määritä**. Sivulla määritetään käsittelyssäännöt, virheilmoitusten vastaanottajat sekä ONIX ProductForm -mäppäykset (`map_productform`) CSV-muodossa.
+
+Sivulla määritettävät asetukset:
+
+| Asetus | Merkitys |
+| --- | --- |
+| `authoriser` | EditX-tilausten luovan Koha-käyttäjän borrowernumber. Käyttäjä luo tilauskorit ja tilaukset, ja tähän on tarkoitusta varten lisätty oma editx-käyttäjä. |
+| `allowed_locations` | Pilkuilla erotetut hyllypaikkakoodit, jotka hyväksytään, kun EDItX-tilikoodista haetaan kirjasto, hyllypaikka ja vuosi. Tarkistetaan Kohan LOC-arvoista. |
+| `productform_alternative_triggers` | Pilkuilla erotetut hyllypaikkakoodit, jotka käyttävät `productform_alternative`-mäppäystä. |
+| `automatch_biblios` | Kun käytössä, EDItX-tuonti yrittää yhdistää olemassa olevan tietueen kanssa ennen uuden luomista. Oletuksena päällä. |
+| `use_finna_materialtype` | Kun käytössä, 942$c-kentän tieto johdetaan Finna-materiaalityypistä ONIX ProductForm -mäppäyksen sijaan. Oletuksena pois. |
+| `notifications/mailto` | Pilkuilla erotetut vastaanottajat, joille apuskriptit raportoivat epäonnistuneesta EDItX-käsittelystä. |
+| `notifications/mailfrom` | Ilmoitussähpostien lähettäjä. |
+
+Sivulla huomioitavaa:
+
+- Sähköpostiosoitteet on oltava pilkulla eroteltuina samalla rivillä. XML:stä kopioitu arvo menee kantaan sellaisenaan, ja validointi hylkää tallennuksen, jos pilkut puuttuvat.
+- `authoriser` ja `allowed_locations` ovat pakollisia ennen kuin tuonti voi toimia.
+- Tuotantovaiheessa kannattaa varmuuskopioida `map_productform` **ennen** ensimmäistä tallennusta, koska tallennus tyhjentää taulun ja kirjoittaa sen uudelleen CSV:stä. Ohjeet ovat [UPGRADE.md](UPGRADE.md)-tiedostossa.
+
+Vanhoista asennuksista päivitettäessä ks. [UPGRADE.md](UPGRADE.md).
+
+### XML-tiedosto (vanhentunut)
+
+> **Vanhentunut.** Uusiin asennuksiin tiedostoa ei luoda. Se on jäljellä vain taaksepäin yhteensopivuutta varten.
+
+Tiedoston polku päätellään `KOHA_CONF`-ympäristömuuttujan arvosta, joten tiedosto on samassa hakemistossa kuin `koha-conf.xml` — tyypillisesti `/etc/koha/procurement-config.xml`.
+
+Ainoa sisältö, jota tiedostosta enää tarvitaan, ovat `import_*`-polut, koska niitä ei tallenneta Configure-näkymään. Avaimet kirjoitetaan `data`-elementin alle `settings`-elementtiin:
+
+| Avain | Tyypillinen polku | Käytös |
+| --- | --- | --- |
+| `import_tmp_path` | `/home/koha/koha-dev/var/spool/editx/tmp` | Aineistontoimittajan SFTP-sisääntulo |
+| `import_archive_path` | `/home/koha/koha-dev/var/spool/editx/archive` | Onnistuneesti käsitellyt tiedostot |
+| `import_failed_path` | `/home/koha/koha-dev/var/spool/editx/fail` | Käsittelyssä hylätyt tiedostot |
+| `import_failed_archived_path` | `/home/koha/koha-dev/var/spool/editx/failed_archived` | Uudelleenajosta hylätyt vanhentuneet tiedostot |
+
+Polkuihin ei yleensä tarvitse koskea: yllä olevat polut toimivat, jos käyttöönotto tehdään tässä dokumentissa kuvatulla tavalla. Kaikkia muita asetuksia ei tarvitse kirjoittaa tiedostoon lainkaan, vaan ne siirretään Configure-näkymään.
+
+### Milloin tiedoston voi poistaa
+
+Tiedosto voidaan poistaa, kun molemmat sen jäljelle jääneet tehtävät on hoidettu:
+
+1. `import_*`-polut on kopioitu kantaan skriptillä `cronjobs/importEditXPathsToDb.pl`, ja kanta-arvot on varmistettu esimerkiksi skriptillä `cronjobs/checkEditXConfig.pl`.
+2. Kaikki käsittelyssäännöt ja ilmoitusasetukset on tallennettu Configure-näkymässä.
+
+Asennuksissa, joissa kanta-arvot on täytetty, tiedoston arvoja ei enää käytetä, ja tiedoston puuttuminen käsitellään harmittomasti: se vain ympäröidään tyhjällä hajautusmäärällä. Tällöin tiedosto voidaan poistaa suoraan. Asennuksissa, joissa kanta-arvot ovat tyhjiä, tiedosto on yhä ainoa lähde `import_*`-poluille — jos polut eivät ole kannassa eikä tiedostossa, `runEditXImport.pl` kaatuu käynnistyksessään.
+
+### Perinnöiset ja käyttämättömät avaimet
+
+`import_load_path` on jäänyt konfiguraatiosta roikkumaan: mikään tuotannossa kutsuttava käsittelyvaihe ei lue sitä, ja sitä käyttää vain moduuli, jota mikään muu moduuli ei lataa. Asetusta ei poistettu, jotta olemassa olevat asennukset eivät rikkoudu. `log_directory`-avainta ei voi asettaa lainkaan, vaan se lasketaan aina.
 
 ## Sanomien käsittelyn ja virhehuomautusten ajastus
 
 Ajastukset sanomien käsittelyyn on valmiina koha-käyttäjän crontabissa, mutta uuden kontin luontivaiheessa ne on kommentoitu pois käytöstä. Käyttöönottovaiheessa kommenttimerkit täytyy poistaa seuraavilta riveiltä:
 
-```
-  */1 06-22 * * *    $TRIGGER cronjobs/runEditXImport.pl
-  45 23 * * *        $TRIGGER cronjobs/notify_failed_editx.sh
-  00 21 * * *        $TRIGGER cronjobs/requeue_failed_editx.sh
+```cron
+*/1 06-22 * * *  $TRIGGER cronjobs/runEditXImport.pl          # tiedostot (import_tmp_path) -> edifact_messages
+*/1 06-22 * * *  $TRIGGER cronjobs/process_edi_messages.pl    # edifact_messages NEW -> tilaus
+45 23 * * *      $TRIGGER cronjobs/notify_failed_editx.sh     # virheilmoitussähköpostit (sis. edifact_messages FAILED -sanomat)
+00 21 * * *      $TRIGGER cronjobs/requeue_failed_editx.sh    # vanhentuneet/virheelliset tiedostot -> failed_archived / uudelleenjonoon
 ```
 
-Sanomat käsitellään klo 6.00-22.00 välisenä aikana minuutin välein tai niin nopeassa tahdissa kuin mahdollista.
+Molemmat minuutin välein ajettavat skriptit ovat välttämättömiä: `runEditXImport.pl` tuo sanomat tiedostoista tauluun ja `process_edi_messages.pl` muuntaa ne tilauksiksi. Jos jokin näistä on pois ajastuksesta, jälkimmäinen ei tee mitään, vaikka tauluun tulisi uusia `NEW`-rivejä.
+
+Sanomat käsitellään klo 6.00-22.00 välisenä aikana minuutin välein tai niin nopeassa tahdissa kuin mahdollista. Uudelleenjonotus tapahtuu klo 21.00 ja virheilmoitussähköpostit lähetetään klo 23.45.
+
+`notify_failed_editx_elastic.sh` ja `notify-failed-editx_old.sh` ovat vanhentuneita eivätkä ne korvaa `notify_failed_editx.sh`:n toimintoja. Älä ajasta niitä.
+
+`process_edi_messages.pl` lukee XSD-skeeman polusta, joka on kovakoodattu arvoon `/var/lib/koha/plugins/Koha/Plugin/Fi/KohaSuomi/Editx/Procurement/EditX/XmlSchema/`. Jos pluginia ei ole asennettu tuohon hakemistoon, skeemavarmistus epäonnistuu ja virhe näkyy lokeissa.
 
 ## Sanoma-esimerkki
 
 Sanoman tiedosto tulee olla xml-muodossa.
 
 `Header`-osio sisältää yleisiä tilauksen tietoja, kun taas jokaisella teoksella on oma `ItemDetail`-elementtinsä. `LineNumber`-arvoa tulee kasvattaa jokaisen `ItemDetail`-elementin kohdalla. `Summary`-tagi tarjoaa yhteenvedon kaikista `ItemDetail`-elementeistä.
+
+### Tunnistetut aineistontoimittajat
+
+Käsittelijä valitaan sanoman `SellerParty/PartyName/NameLine`-kentän arvon perusteella. Tunnistettuja toimittajia ovat:
+
+| `NameLine` | Käsittelijä |
+| --- | --- |
+| `BTJ Finland Oy` | BTJ |
+| `Booky.fi Oy` | Booky |
+| `Kirjavälitys Oy` | Kirjavälitys |
+
+Jokaisella toimittajalla on omat `ItemDetail`- ja `CopyDetail`-käsittelijänsä, koska kenttien sisältö vaihtelee toimittajan mukaan. Jos `NameLine`-arvoa ei tunnisteta, sanoma käsitellään yleisellä oletuskäsittelijällä, joka ei huomioi toimittajakohtaisia eroja. Sanoma voidaan silti tallentaa tauluun, mutta kentät voivat jäädä puuttumaan.
+
+Alla oleva esimerkkisanoma on BTJ:n lähettämä. Kirjavälityksen ja Bookyn sanomarakenteet poikkeavat esimerkistä.
 
 
 ```xml
@@ -270,6 +349,7 @@ Plugin tarjoaa REST-rajapinnan ulkopuolisille järjestelmille, jotka haluavat in
 | Metodi | Osoite | Kuvaus | Oikeus |
 | --- | --- | --- | --- |
 | POST | `/api/v1/contrib/kohasuomi/editx` | Lisää EDItX-sanoman `edifact_messages`-tauluun statuksella `NEW` | `acquisition: edi_manage` |
+| PUT | `/api/v1/contrib/kohasuomi/editx/{id}` | Muuttaa sanoman tilan (esim. `NEW`, jolloin sanoma ajetaan uudelleen) | `acquisition: edi_manage` |
 
 ### Todennus (OAuth2)
 
@@ -296,6 +376,8 @@ Vastauksena tulee access token:
 
 Token on voimassa tunnin (`expires_in` 3600 sekuntia), jonka jälkeen haetaan uusi. Jos tunnukset ovat väärät, vastauksena on `403 unauthorized_client`. Vanhentunut tai kelvoton token tuottaa virheen `401`.
 
+Käyttäjällä, joka lähettää sanomia tai käyttää uudelleenajoa, täytyy olla alioikeus **acquisition → edi_manage**.
+
 ### Sanoman lähetys
 
 Lähetä EDItX-sanoma XML-merkkijonona POST-pyynnöllä. `Content-Type`-otsakkeen on oltava `application/xml` ja mukaan laitetaan haettu access token `Authorization: Bearer` -otsakkeena. Esimerkki sanoman sisällöstä on kohdassa [Sanoma-esimerkki](#sanoma-esimerkki).
@@ -307,18 +389,119 @@ curl -X POST https://<koha-palvelin>/api/v1/contrib/kohasuomi/editx \
      --data @sanoma.xml
 ```
 
+Sanoma tarkistetaan ennen tallennusta. Tarkistuksessa varmistetaan, että pakolliset kentät ovat paikallaan ja että sanoman SAN-tunnus löytyy `vendor_edi_accounts`-taulusta (kuluttajatunnus `VendorAssignedID`, tunnus 91; varalta myyjätunnus `BuyerAssignedID`, tunnus 92). Kustannuspaikkaa ei tarkisteta tässä vaiheessa, vaan se varmistetaan vasta tilausta luotaessa.
+
 #### Vastaukset
 
 | Tilakoodi | Merkitys |
 | --- | --- |
 | `201` | Sanoma tallennettu onnistuneesti (`{"message":"Data saved successfully"}`) |
-| `400` | Virheellinen XML tai puuttuvat pakolliset kentät (esim. tuntematon SAN-tunnus, tuntematon kustannuspaikka tai myyjä) |
-| `404` | Kohdetta ei löytynyt |
+| `400` | Virheellinen XML tai puuttuvat pakolliset kentät. Vastauskappaleen `errors`-listassa kerrotaan kentät ja tuntematon SAN-tunnus. |
 | `500` | Odottamaton palvelinvirhe |
+
+`POST`-päätepiste ei palauta `404`-tilakoodia; sellainen kuuluu `PUT`-päätepisteelle.
+
+### Sanoman uudelleenajo
+
+`PUT`-päätepiste vaihtaa sanoman tilan. Asetamalla tila `NEW` pääsee sanoman takaisin käsittelyjonoon.
+
+```
+curl -X PUT https://<koha-palvelin>/api/v1/contrib/kohasuomi/editx/<ID> \
+     -H "Authorization: Bearer <ACCESS_TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d '{"status":"NEW"}'
+```
+
+Sama toiminto on käytettävissä käyttöliittymästä: EDI-sanomat-sivulla (`acqui/edifactmsgs.pl`) jokaisella sanomalla on **Aja uudelleen** -painike, joka kutsuu tätä päätepistettä. Hyväksyttävät tilat ovat `NEW`, `PROCESSING`, `OK` ja `FAILED`.
 
 ### Sanoman elinkaari
 
 Lähetetty sanoma tallentuu `edifact_messages`-tauluun statuksella `NEW`. Ajastettu `process_edi_messages.pl`-skripti käsittelee uudet sanomat tilauksiksi, jonka jälkeen käsittelyä voi seurata Koha:n EDI-sanomat-sivulla.
+
+Tilat kulkevat näin:
+
+| Tila | Merkitys |
+| --- | --- |
+| `NEW` | Odottaa käsittelyä |
+| `PROCESSING` | Käsittely varattu (käsittelijä on lukenut sanoman itselleen) |
+| `OK` | Käsitelty onnistuneesti, tilaus luotu |
+| `FAILED` | Käsittely epäonnistui; virhe on `edifact_errors`-taulussa |
+
+`PROCESSING`-tilaan siirtyminen on atominen, joten rinnakkaiset ajot eivät käsittele samaa sanomaa kahteen kertaan. Jos käsittely keskeytyy niin, että sanoma jää `PROCESSING`-tilaan, se pitää palauttaa tilaan `NEW` käsin.
+
+## Apukriptit
+
+Näitä ei ajasteta, ellei toisin mainita.
+
+| Skripti | Käyttötarkoitus |
+| --- | --- |
+| `cronjobs/checkEditXConfig.pl` | Tulostaa jokaisen asetuksen lähteen (`plugin_data` tai `XML`) ja arvon, ja merkitsee puuttuvat hakemistot tunnuksella `[DIR MISSING]`. Ensimmäinen skripti, joka kannattaa ajaa, kun tuonti ei toimi. |
+| `cronjobs/exportEditXConfig.pl` | Tulostaa asetukset `export`-riveinä. Apuskriptit lukevat asetukset tällä tavalla. |
+| `cronjobs/importEditXPathsToDb.pl` | Kopioi `import_*`-polut XML-tiedostosta tietokantaan. Täyttää vain tyhjät rivit; `--force` ylikirjoittaa. |
+| `cronjobs/get_failed_editx_messages.pl` | Tulostaa päivän aikana epäonnistuneet sanomat niiden virheteksteineen. Käytetään `notify_failed_editx.sh`:n apuna. |
+
+Vanhentuneita skriptejä ei pidä ajastaa: `cronjobs/notify_failed_editx_elastic.sh` ja `cronjobs/notify-failed-editx_old.sh`.
+
+## Vianmääritys
+
+**Sanoma ei ilmesty tauluun.** Tarkista ensin asetukset: `perl cronjobs/checkEditXConfig.pl`. Jos `import_tmp_path` on merkitty `[DIR MISSING]`, hakemisto puuttuu. Tarkista myös, että tiedostolla on `.xml`-pääte ja että se ei ole tyhjä.
+
+**Sanoma päätyy `fail`-hakemistoon.** Tyhjä tiedosto, duplikaatti ja puuttuva myyjä päätyvät sinne. Vastaavat merkinnät ovat pluginin `error.log`-tiedostossa.
+
+**Sanoma on taulussa mutta tilausta ei syntynyt.** Katso `edifact_messages`-taulun tila ja `edifact_errors`-taulu, ks. [Kehittäjälle](#kehittäjälle-mistä-löytää-virheet).
+
+**Sähköpostia ei tule.** Varmista, että `notify_failed_editx.sh` on ajastettu ja että `notifications/mailto` sisältää pilkulla erotetut osoitteet. Skripti vaatii myös `xmllint`- ja `mail`-komennon palvelimella. Jos mitään ei ole reportoitavaa, skripti poistuu hiljaa.
+
+**Sanoma jää käsittelemättä.** Tarkista, että `process_edi_messages.pl` on ajastettu. Pelkkä `runEditXImport.pl` ei riitä, vaikka tauluun tulisi uusia `NEW`-rivejä.
+
+**Skeemavarmistus epäonnistuu.** `process_edi_messages.pl` odottaa skeemat polusta `/var/lib/koha/plugins/Koha/Plugin/Fi/KohaSuomi/Editx/Procurement/EditX/XmlSchema/`, joka on kovakoodattu.
+
+## Kehittäjälle: mistä löytää virheet
+
+Plugin kirjoittaa kolmeen paikkaan. Se mitä kukin niistä sisältää, riippuu vaiheesta.
+
+| Oire | Mistä etsitään |
+| --- | --- |
+| Tiedosto ei pääty `edifact_messages`-tauluun | `<logdir>/editx/transaction.log` ja `<logdir>/editx/error.log` |
+| Tiedosto hyppää `fail`-hakemistoon | `error.log`. Tätä vaihetta varten ei synny `edifact_errors`-riviä, koska virhe liitetään sanomaan tiedoston alkuperäisellä nimellä, vaikka tauluun tallennetaan sanoma muodostetulla nimellä. |
+| Sanoma taulussa, tilaus ei syntynyt | `edifact_messages.status` ja `edifact_errors.details`. **Lokitiedostoa ei ole.** |
+| REST-pyyntö palautti `400` | Vastauskappaleen `errors`-lista sekä `error.log` |
+| REST-pyyntö palautti `500`, tai todennus-/valtuutusvirhe | Kohan oma-loki, jonne kirjoitetaan `Koha::Logger`-olla rajapinnan kautta (`interface => 'api'`) |
+| Asetukset eivät ota vaikutusta | `cronjobs/checkEditXConfig.pl` kertoo kunkin avaimen lähteen |
+| Testidata ja -skriptit | `t/TESTING.md` sekä apurit `t/populate_test_data.pl` ja `t/seed_automatch_fixtures.pl` |
+
+Pluginin oma loki on aina `<logdir>/editx/`, jossa ovat `transaction.log` (tapahtumat) ja `error.log` (virheet). Hakemisto lasketaan eikä sitä voi asettaa.
+
+### Tilausvaihe ei kirjoita lokeja
+
+Tämä on tärkeää tietää vianmäärityksessä: `process_edi_messages.pl` **ei kirjoita lokeja lainkaan**. Vaikka tilauskäsittely kirjelmöi virheitä, lokiversio luodaan ainoastaan kutsujan antamalla hakemistolla, ja tässä kutsujaksi on jäänyt antamatta hakemisto. Kirjoitus estetään lisäksi olemattomiin tiedostoihin, joten mitään ei pääty levylle huoletta ään.
+
+Tilausvaiheen virheet ovat siksi kannassa:
+
+```sql
+SELECT m.id, m.filename, m.status, m.transfer_date, e.date, e.details
+FROM edifact_messages m
+LEFT JOIN edifact_errors e ON e.message_id = m.id
+WHERE m.message_type = 'EDItX'
+ORDER BY m.id DESC;
+```
+
+Rajattu epäonnistuneisiin:
+
+```sql
+SELECT m.id, m.filename, e.details
+FROM edifact_messages m
+LEFT JOIN edifact_errors e ON e.message_id = m.id
+WHERE m.message_type = 'EDItX' AND m.status = 'FAILED';
+```
+
+`details`-sarake sisältää Perlin `die`-viestin, joka kertoo virheen suoraan. Alkuperäinen XML löytyy `edifact_messages.raw_msg`-sarakkeesta, joten arkistoidun tiedoston saa kannasta takaisin:
+
+```sql
+SELECT raw_msg FROM edifact_messages WHERE id = <id>;
+```
+
+Korjaus on pieni: `OrderProcessor.pm` rakentaa lokiversion ilman hakemistoa, joten se kannattai tehdä samalla tavalla kuin `runEditXImport.pl` eli antaa sille `log_directory`-asetuksen arvon.
 
 ## Käyttöohjeet
 

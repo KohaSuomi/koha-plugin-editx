@@ -79,7 +79,7 @@ sub getConfigXmlPath{
     my $kohaConfigPath = $ENV{'KOHA_CONF'};
     my $kohaPath = $ENV{'KOHA_PATH'};
     my($file, $path, $ext) = fileparse($kohaConfigPath);
-    my $procurementConfigPath = $path . $configFile; # use the same path as koha_config.xml file
+    my $procurementConfigPath = $path . $configFile; # use the same path as the koha-conf.xml file
     return $procurementConfigPath;
 }
 
