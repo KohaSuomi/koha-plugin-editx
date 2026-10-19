@@ -33,6 +33,7 @@ my $test_xml = '<?xml version="1.0"?>
 my @create_calls;
 my @error_log_calls;
 my @log_calls;
+my @log_error_calls;
 my $mock_find_vendor = 'TEST_VENDOR_ID';
 my $mock_dup_exists  = 0;
 
@@ -52,7 +53,7 @@ $mock_config->redefine('getSettings', sub {
 my $mock_logger = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger');
 $mock_logger->redefine('new',   sub { bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger' });
 $mock_logger->redefine('log',       sub { my ($self, $msg) = @_; push @log_calls, $msg; return 1; });
-$mock_logger->redefine('logError',  sub { my ($self, $msg) = @_; push @log_calls, $msg; return 1; });
+$mock_logger->redefine('logError',  sub { my ($self, $msg) = @_; push @log_error_calls, $msg; return 1; });
 
 my $mock_edi = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage');
 $mock_edi->redefine('new',              sub { bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage' });
@@ -74,6 +75,7 @@ sub run_cron {
     @create_calls     = ();
     @error_log_calls  = ();
     @log_calls        = ();
+    @log_error_calls  = ();
 
     $mock_find_vendor = exists $params{vendor_id} ? $params{vendor_id} : 'TEST_VENDOR_ID';
     $mock_dup_exists  = exists $params{duplicate_exists} ? $params{duplicate_exists} : 0;
@@ -121,6 +123,8 @@ subtest 'skips duplicate file' => sub {
     ok(!-f "$tmp_dir/test2.xml", 'file was moved out of tmp');
     ok(-f "$failed_dir/test2.xml", 'file was moved to failed');
     is(scalar @error_log_calls, 0, 'no errors logged for duplicate');
+    like(join("\n", @log_error_calls), qr/test2\.xml/, 'duplicate is logged to error.log, which the notification e-mail reads');
+    unlike(join("\n", @log_calls), qr/test2\.xml/, 'duplicate is not left to transaction.log only');
 };
 
 subtest 'skips empty file' => sub {

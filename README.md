@@ -13,7 +13,7 @@ Sanoma kulkee palvelimella kahdessa vaiheessa, ja vaiheiden väliin jää aineis
 
 REST-rajapinta kiertää vaiheet 1-2 ohi ja kirjoittaa sanoman suoraan `edifact_messages`-tauluun tilalla `NEW`, eli käsittely alkaa vaiheesta 3.
 
-Sanoman tunnistee taulussa tiedostonimi, joka muodostetaan kentistä `ShipNoticeNumber` ja `IssueDateTime` (REST-rajapinnalla käyttäjätunnus etuliitteenä). Tämä toimii myös duplikaattien tunnistamisena: sama sanoma hylätään toistamiseksi.
+Sanoman tunnistee taulussa tiedostonimi, joka muodostetaan kentistä `ShipNoticeNumber` ja `IssueDateTime` (REST-rajapinnalla käyttäjätunnus etuliitteenä). Tämä toimii myös duplikaattien tunnistamisena: sama sanoma hylätään toistamiseksi. Poikkeuksena on sanoma, jonka käsittely on epäonnistunut (`FAILED`): toimittaja saa lähettää saman nimisen sanoman uudelleen korjattuna, ja se hyväksytään uudeksi käsittelyksi. Epäonnistunut sanoma ja sen virheet jäävät tauluun historiaa varten, joten tauluun voi jäädä kaksi riviä samalla tiedostonimellä.
 
 ## Käyttöönoton määritykset Koha-palvelimella
 
@@ -110,6 +110,8 @@ Ajastukset sanomien käsittelyyn on valmiina koha-käyttäjän crontabissa, mutt
 Molemmat minuutin välein ajettavat skriptit ovat välttämättömiä: `runEditXImport.pl` tuo sanomat tiedostoista tauluun ja `process_edi_messages.pl` muuntaa ne tilauksiksi. Jos jokin näistä on pois ajastuksesta, jälkimmäinen ei tee mitään, vaikka tauluun tulisi uusia `NEW`-rivejä.
 
 Sanomat käsitellään klo 6.00-22.00 välisenä aikana minuutin välein tai niin nopeassa tahdissa kuin mahdollista. Uudelleenjonotus tapahtuu klo 21.00 ja virheilmoitussähköpostit lähetetään klo 23.45.
+
+Virheilmoitussähköposti kokoaa `fail`-hakemiston tiedostot, päivän aikana epäonnistuneet sanomat `edifact_messages`-taulusta sekä tiedostoittain otteet `error.log`-tiedostosta. Duplikaatit kirjoitetaan `error.log`:iin, jotta ne näkyvät sähköpostissa perusteluineen.
 
 `notify_failed_editx_elastic.sh` ja `notify-failed-editx_old.sh` ovat vanhentuneita eivätkä ne korvaa `notify_failed_editx.sh`:n toimintoja. Älä ajasta niitä.
 
@@ -427,6 +429,8 @@ Tilat kulkevat näin:
 | `OK` | Käsitelty onnistuneesti, tilaus luotu |
 | `FAILED` | Käsittely epäonnistui; virhe on `edifact_errors`-taulussa |
 
+Epäonnistuneen sanoman toimittaja voi korjata ja lähettää uudelleen samalla `ShipNoticeNumber`- ja `IssueDateTime`-arvolla. Korjattu sanoma tallentuu uutena `NEW`-rivinä, joten käsittely käynnistyy tavallisesti. Vanha `FAILED`-rivi säilyy taulussa virheineen.
+
 `PROCESSING`-tilaan siirtyminen on atominen, joten rinnakkaiset ajot eivät käsittele samaa sanomaa kahteen kertaan. Jos käsittely keskeytyy niin, että sanoma jää `PROCESSING`-tilaan, se pitää palauttaa tilaan `NEW` käsin.
 
 ## Apukriptit
@@ -446,7 +450,7 @@ Vanhentuneita skriptejä ei pidä ajastaa: `cronjobs/notify_failed_editx_elastic
 
 **Sanoma ei ilmesty tauluun.** Tarkista ensin asetukset: `perl cronjobs/checkEditXConfig.pl`. Jos `import_tmp_path` on merkitty `[DIR MISSING]`, hakemisto puuttuu. Tarkista myös, että tiedostolla on `.xml`-pääte ja että se ei ole tyhjä.
 
-**Sanoma päätyy `fail`-hakemistoon.** Tyhjä tiedosto, duplikaatti ja puuttuva myyjä päätyvät sinne. Vastaavat merkinnät ovat pluginin `error.log`-tiedostossa.
+**Sanoma päätyy `fail`-hakemistoon.** Tyhjä tiedosto, duplikaatti ja puuttuva myyjä päätyvät sinne. Vastaavat merkinnät ovat pluginin `error.log`-tiedostossa. Duplikaatiksi tulkitaan sanoma, jolla on jo käsitelty tai käsittelyssä oleva rivi samalla nimellä; jos taulussa on vain `FAILED`-tilassa oleva sanoma, korjattu sanoma hyväksytään eikä sitä siirretä `fail`-hakemistoon.
 
 **Sanoma on taulussa mutta tilausta ei syntynyt.** Katso `edifact_messages`-taulun tila ja `edifact_errors`-taulu, ks. [Kehittäjälle](#kehittäjälle-mistä-löytää-virheet).
 

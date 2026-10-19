@@ -57,7 +57,9 @@ foreach my $file (@files) {
     my $filename = $edi_message->constructFilename($xml, undef);
     print "Processing file $file, constructed filename: $filename\n";
     if ($edi_message->duplicateExists($filename)) {
-        $logger->log("File $file already exists as $filename in DB, moving to failed");
+        # Logged as an error so that the notification e-mail picks the reason
+        # up from error.log, like it does for the other files in the failed folder.
+        $logger->logError("File $file already exists as a processed or pending message $filename in DB, moving to failed");
         move("$tmpPath$file", "$failedPath$file") or die "Could not move file $file to failed directory: $!";
         next;
     }

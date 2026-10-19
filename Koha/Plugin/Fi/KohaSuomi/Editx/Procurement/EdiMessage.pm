@@ -129,7 +129,11 @@ sub duplicateExists {
     my $self = shift;
     my $filename = $_[0];
     my $dbh = C4::Context->dbh;
-    my $sth = $dbh->prepare("SELECT COUNT(*) FROM edifact_messages WHERE filename=?");
+
+    # A message that already failed does not block a re-send: the vendor may
+    # have corrected the order while keeping the same ShipNoticeNumber and
+    # IssueDateTime, so the file name collides with the failed message.
+    my $sth = $dbh->prepare("SELECT COUNT(*) FROM edifact_messages WHERE filename=? AND (status IS NULL OR status <> 'FAILED')");
     $sth->execute($filename);
     my ($count) = $sth->fetchrow_array();
     return $count > 0;
