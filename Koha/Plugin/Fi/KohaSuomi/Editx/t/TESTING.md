@@ -189,9 +189,19 @@ perl ../cronjobs/process_edi_messages.pl
 # 4. check the outcome
 perl seed_rerun_fixtures.pl --verify
 
+# 5. receive the shipment, like "Receive shipment from vendor" in the UI
+perl seed_rerun_fixtures.pl --receive
+
 # remove the fixtures
 perl seed_rerun_fixtures.pl --clear
 ```
+
+`--receive` creates a stock invoice with `AddInvoice` and marks the fixture
+orders received (`quantityreceived`, `datereceived`, `invoiceid`,
+`orderstatus = 'complete'`), the same fields
+`C4::Acquisition::ModReceiveOrder` sets. It only touches orders belonging to
+the fixture messages, does nothing when they are all received already, and
+`--clear` removes the invoices again.
 
 `--seed` refuses to run when fixtures from an earlier seed are still present;
 run `--clear` first. The vendor, fund, branch and location it creates are never
