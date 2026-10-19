@@ -175,7 +175,6 @@ my @SCENARIOS = (
 my @ISBNS = map { @{ $_->{isbns} } } @SCENARIOS;
 
 my $dbh;
-my $schema;
 my $budget_period_id;
 my $vendor_id;
 my $parser;
@@ -354,6 +353,9 @@ sub check_config {
 }
 
 sub build_parser {
+    # Both classes are named below without a compile-time use, so they have to
+    # be loaded here before ->new is called on them.
+    require Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice;
     require Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser;
 
     my $schema_path = $FindBin::Bin . '/../Koha/Plugin/Fi/KohaSuomi/Editx/Procurement/EditX/XmlSchema/';
@@ -926,9 +928,11 @@ HINT
 
 # ----------------------------------------------------------------------- main
 
-$dbh    = Koha::Database->new->dbh;
-$schema = Koha::Database->new->schema;
-$year   = DateTime->now->year;
+# Koha::Plugins does not load Koha::Database, so require it before ->new.
+require Koha::Database;
+
+$dbh  = Koha::Database->new->dbh;
+$year = DateTime->now->year;
 
 exit 1 if $MODE_VERIFY && verify();
 exit 0 if $MODE_VERIFY;
