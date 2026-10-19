@@ -834,7 +834,14 @@ sub clear_fixtures {
 
     my @keys = map { $_->{key} } @SCENARIOS;
     my $basket_names = join ', ', map { sql_literal($_) } @keys;
-    my $titles       = join ', ', map { sql_literal( "$_->{key} line $_" ) } ( 1, 2 );
+
+    # Every fixture line gets the title "<KEY> line <n>", for the biblios this
+    # script created.
+    my $titles = join ', ',
+        map {
+        my $key = $_->{key};
+        map { sql_literal("$key line $_") } ( 1, 2 );
+        } @SCENARIOS;
 
     my $order_clause = "(SELECT ordernumber FROM aqorders
                           WHERE basketno IN (SELECT basketno FROM aqbasket WHERE basketname IN ($basket_names)))";
@@ -842,6 +849,34 @@ sub clear_fixtures {
     my $itemnumbers
         = $dbh->selectcol_arrayref("SELECT itemnumber FROM aqorders_items WHERE ordernumber IN $order_clause");
     my $item_clause = @{$itemnumbers} ? 'itemnumber IN (' . join( ', ', @{$itemnumbers} ) . ')' : '1 = 0';
+
+    # Order matters: aqbudgets_spend_log and aqorders.invoiceid point at rows
+    # that are deleted below, so they go first.
+
+    # The spend log stores the filename in origin, and the lookup goes through
+    # edifact_messages, which is removed last.
+    for my $scenario (@SCENARIOS) {
+        my $key = $scenario->{key};
+        my $rows = $dbh->do(
+            "DELETE FROM aqbudgets_spend_log
+             WHERE origin IN (SELECT filename FROM edifact_messages
+                              WHERE message_type = 'EDItX' AND filename LIKE ?)",
+            undef, "$key\\_%"
+        );
+        $rows = defined $rows ? $rows + 0 : 0;
+        say_ok("aqbudgets_spend_log: removed $rows row(s)") if $rows;
+    }
+
+    # aqorders.invoiceid points at the stock invoice --receive created, so the
+    # orders lose the link before the invoice goes.
+    my @invoices = @{ $dbh->selectcol_arrayref(
+        "SELECT invoiceid FROM aqinvoices WHERE invoicenumber LIKE ?", undef, "$FIXTURE_PREFIX-RERUN-%" ) };
+
+    for my $invoiceid (@invoices) {
+        my $unlinked = $dbh->do( 'UPDATE aqorders SET invoiceid = NULL WHERE invoiceid = ?', undef, $invoiceid );
+        $unlinked = defined $unlinked ? $unlinked + 0 : 0;
+        say_ok("aqorders: unlinked $unlinked order(s) from invoice $invoiceid") if $unlinked;
+    }
 
     my @statements = (
         [ "DELETE FROM aqorders_items WHERE ordernumber IN $order_clause" => 'aqorders_items' ],
@@ -864,31 +899,6 @@ sub clear_fixtures {
         my $rows = $dbh->do($sql);
         $rows = defined $rows ? $rows + 0 : 0;    # "0E0" is truthy as a string
         say_ok("$table: removed $rows row(s)") if $rows;
-    }
-
-    # The spend log stores the filename in origin, so it has to go before the
-    # edifact_messages rows it is looked up through.
-    for my $scenario (@SCENARIOS) {
-        my $key = $scenario->{key};
-        my $rows = $dbh->do(
-            "DELETE FROM aqbudgets_spend_log
-             WHERE origin IN (SELECT filename FROM edifact_messages
-                              WHERE message_type = 'EDItX' AND filename LIKE ?)",
-            undef, "$key\\_%"
-        );
-        $rows = defined $rows ? $rows + 0 : 0;
-        say_ok("aqbudgets_spend_log: removed $rows row(s)") if $rows;
-    }
-
-    # aqorders.invoiceid points at the stock invoice --receive created, so the
-    # orders lose the link before the invoice goes.
-    my @invoices = @{ $dbh->selectcol_arrayref(
-        "SELECT invoiceid FROM aqinvoices WHERE invoicenumber LIKE ?", undef, "$FIXTURE_PREFIX-RERUN-%" ) };
-
-    for my $invoiceid (@invoices) {
-        my $unlinked = $dbh->do( 'UPDATE aqorders SET invoiceid = NULL WHERE invoiceid = ?', undef, $invoiceid );
-        $unlinked = defined $unlinked ? $unlinked + 0 : 0;
-        say_ok("aqorders: unlinked $unlinked order(s) from invoice $invoiceid") if $unlinked;
     }
 
     if (@invoices) {
