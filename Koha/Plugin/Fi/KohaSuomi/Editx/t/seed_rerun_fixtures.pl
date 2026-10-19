@@ -37,6 +37,9 @@ seed_rerun_fixtures.pl - Seed fixtures for re-running a failed EDItX message
     perl <pluginsdir>/Koha/Plugin/Fi/KohaSuomi/Editx/cronjobs/process_edi_messages.pl
     perl seed_rerun_fixtures.pl --verify
 
+    # 5. receive the shipment, like the acquisitions UI would
+    perl seed_rerun_fixtures.pl --receive
+
     # remove everything this script created
     perl seed_rerun_fixtures.pl --clear
 
@@ -72,11 +75,20 @@ orders and 3 items and RR02 with 2 orders and 2 items.
     --seed              Create/refresh the fixtures (default)
     --verify            Report the outcome after running process_edi_messages.pl
     --requeue           Set the fixture messages back to NEW for processing
+    --receive           Receive the shipment: stock invoice and received orders
     --clear             Remove the fixtures created by this script
     --borrowernumber=N  Borrower owning the test fund (default: 51)
     --help              Show this help
 
 =head1 NOTES
+
+C<--receive> does what "Receive shipment from vendor" does in the acquisitions
+user interface: it creates a stock invoice with C<AddInvoice> and then sets
+C<quantityreceived>, C<datereceived>, C<invoiceid> and C<orderstatus> the same
+way C<C4::Acquisition::ModReceiveOrder> does, so the fixture ends up in the
+state a real received delivery leaves behind. It only touches orders that
+belong to the fixture messages, and does nothing when they are all received
+already. C<--clear> removes those invoices again.
 
 The infrastructure (currency, branch, location, vendor, budget period, fund) is
 created if missing and is never removed by C<--clear>, so it can be shared with
@@ -106,6 +118,7 @@ my $FUND     = 'RRERUN';
 my $MODE_SEED    = 0;
 my $MODE_VERIFY  = 0;
 my $MODE_REQUEUE = 0;
+my $MODE_RECEIVE = 0;
 my $MODE_CLEAR   = 0;
 my $borrowernumber = 51;
 my $help        = 0;
@@ -114,6 +127,7 @@ GetOptions(
     'seed'              => \$MODE_SEED,
     'verify'            => \$MODE_VERIFY,
     'requeue'           => \$MODE_REQUEUE,
+    'receive'           => \$MODE_RECEIVE,
     'clear'             => \$MODE_CLEAR,
     'borrowernumber=i'  => \$borrowernumber,
     'help'              => \$help,
@@ -126,6 +140,7 @@ Usage: seed_rerun_fixtures.pl [OPTIONS]
   --seed              Create/refresh the re-run fixtures (default)
   --verify            Report the outcome after running process_edi_messages.pl
   --requeue           Set the fixture messages back to NEW so the cron picks them up
+  --receive           Receive the shipment: stock invoice + received orders
   --clear             Remove the fixtures created by this script
   --borrowernumber=N  Borrower owning the test fund (default: 51)
   --help              Show this help
@@ -134,7 +149,7 @@ HELP
     exit 0;
 }
 
-$MODE_SEED = 1 unless $MODE_VERIFY || $MODE_CLEAR || $MODE_REQUEUE || $MODE_SEED;
+$MODE_SEED = 1 unless $MODE_VERIFY || $MODE_CLEAR || $MODE_REQUEUE || $MODE_RECEIVE || $MODE_SEED;
 
 # expect_orders / expect_items are counted over every basket and order that
 # belongs to the fixture, so a second basket created by the re-run counts too.
@@ -701,6 +716,7 @@ sub seed {
     print "  perl seed_rerun_fixtures.pl --requeue\n";
     print "  perl cronjobs/process_edi_messages.pl\n";
     print "  perl seed_rerun_fixtures.pl --verify\n";
+    print "  perl seed_rerun_fixtures.pl --receive\n";
 }
 
 sub check_isbns {
@@ -719,6 +735,70 @@ sub check_isbns {
             . "\nRemove those records or change the fixture ISBNs, otherwise the"
             . " scenario does not test what it claims to test.\n"
             if @$stored;
+    }
+}
+
+# ------------------------------------------------------------------ receiving
+
+# "Receive shipment from vendor" is acqui/parcels.pl: it creates a stock
+# invoice and then marks the orders received. This does the same, so the
+# fixture ends up in the state a real received delivery leaves behind.
+sub pending_fixture_orders {
+    my $rows = $dbh->selectall_arrayref(
+        "SELECT o.ordernumber, o.quantity, o.unitprice, o.currency
+         FROM aqorders o
+         WHERE o.order_vendornote IN (SELECT filename FROM edifact_messages
+                                      WHERE message_type = 'EDItX' AND filename LIKE ?)
+           AND (o.quantityreceived IS NULL OR o.quantityreceived < o.quantity)
+         ORDER BY o.ordernumber",
+        { Slice => {} }, "$FIXTURE_PREFIX\\_%"
+    );
+
+    return @{$rows};
+}
+
+sub receive_fixtures {
+    require C4::Acquisition;
+
+    print "Receiving $FIXTURE_PREFIX fixtures\n";
+    print "=" x 72 . "\n";
+
+    my @pending = pending_fixture_orders();
+    if ( !@pending ) {
+        say_ok('no unreceived fixture orders, nothing to receive');
+        return;
+    }
+
+    # AddInvoice is the same call the acquisitions UI makes, so the invoice
+    # looks exactly like a stock invoice a user would have created.
+    my $invoice_number = "$FIXTURE_PREFIX-RERUN-" . DateTime->now->strftime('%Y%m%dT%H%M');
+
+    my $invoiceid = C4::Acquisition::AddInvoice(
+        invoicenumber => $invoice_number,
+        booksellerid  => $vendor_id,
+        shipmentdate  => DateTime->now->strftime('%Y-%m-%d'),
+    );
+
+    die "AddInvoice did not return an invoiceid\n" if !$invoiceid;
+
+    my $order_count = scalar @pending;
+    say_new("invoice $invoice_number (id $invoiceid) for $order_count order(s)");
+
+    # The same fields C4::Acquisition::ModReceiveOrder sets when the whole
+    # order is received: no split, budget_id stays as it is.
+    for my $order (@pending) {
+        $dbh->do(
+            "UPDATE aqorders
+             SET quantityreceived = quantity,
+                 datereceived     = CURDATE(),
+                 invoiceid        = ?,
+                 orderstatus      = 'complete',
+                 invoice_unitprice = unitprice,
+                 invoice_currency  = COALESCE(currency, 'EUR')
+             WHERE ordernumber = ?",
+            undef, $invoiceid, $order->{ordernumber}
+        );
+        say_ok("order $order->{ordernumber} received");
     }
 }
 
@@ -798,6 +878,23 @@ sub clear_fixtures {
         );
         $rows = defined $rows ? $rows + 0 : 0;
         say_ok("aqbudgets_spend_log: removed $rows row(s)") if $rows;
+    }
+
+    # aqorders.invoiceid points at the stock invoice --receive created, so the
+    # orders lose the link before the invoice goes.
+    my @invoices = @{ $dbh->selectcol_arrayref(
+        "SELECT invoiceid FROM aqinvoices WHERE invoicenumber LIKE ?", undef, "$FIXTURE_PREFIX-RERUN-%" ) };
+
+    for my $invoiceid (@invoices) {
+        my $unlinked = $dbh->do( 'UPDATE aqorders SET invoiceid = NULL WHERE invoiceid = ?', undef, $invoiceid );
+        $unlinked = defined $unlinked ? $unlinked + 0 : 0;
+        say_ok("aqorders: unlinked $unlinked order(s) from invoice $invoiceid") if $unlinked;
+    }
+
+    if (@invoices) {
+        my $removed_invoices = $dbh->do(
+            "DELETE FROM aqinvoices WHERE invoicenumber LIKE ?", undef, "$FIXTURE_PREFIX-RERUN-%" );
+        say_ok( 'aqinvoices: removed ' . ( $removed_invoices || 0 ) . ' row(s)' ) if $removed_invoices;
     }
 
     my $removed = 0;
@@ -940,5 +1037,11 @@ exit 0 if $MODE_VERIFY;
 requeue()   if $MODE_REQUEUE;
 clear_fixtures() if $MODE_CLEAR;
 seed()      if $MODE_SEED;
+
+if ( $MODE_RECEIVE ) {
+    # AddInvoice needs the bookseller id; --receive can run on its own.
+    ensure_vendor() unless $vendor_id;
+    receive_fixtures();
+}
 
 exit 0;
