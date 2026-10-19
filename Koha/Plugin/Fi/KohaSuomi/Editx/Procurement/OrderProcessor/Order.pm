@@ -85,5 +85,40 @@ sub getBudgetId {
    return $budgetId;
 }
 
+sub getOrderProgress {
+   my $self = shift;
+   my $reference = $_[0];
+   my $fileName  = $_[1];
+
+   return { orders => 0, items => 0 } if !$reference || !$fileName;
+
+   my $dbh = C4::Context->dbh;
+
+   # An order row is written before its items, so the order alone does not
+   # prove the line was written completely: compare the linked items with the
+   # quantity the order was created for.
+   my $stmnt = $dbh->prepare(
+      "SELECT o.ordernumber, o.quantity,
+              (SELECT COUNT(*) FROM aqorders_items oi WHERE oi.ordernumber = o.ordernumber) AS itemcount
+       FROM aqorders o
+       WHERE o.order_internalnote = ? AND o.order_vendornote = ?" );
+   $stmnt->execute( $reference, $fileName );
+
+   my %progress = ( orders => 0, items => 0, quantity => 0, complete => 0 );
+   while ( my $row = $stmnt->fetchrow_hashref ) {
+      $progress{orders}++;
+      $progress{items} += $row->{itemcount};
+      $progress{quantity} += $row->{quantity};
+   }
+   $stmnt->finish();
+
+   # A line counts as written only when every one of its orders has all of the
+   # items it was created for. A line that died between createOrder and the
+   # item loop has an order and too few items, and must still be processed.
+   $progress{complete} = ( $progress{orders} && $progress{items} >= $progress{quantity} ) ? 1 : 0;
+
+   return \%progress;
+}
+
 
 1;

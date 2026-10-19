@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 use utf8;
-use Test::More tests => 19;
+use Test::More tests => 20;
 use Test::MockObject;
 use Test::MockModule;
 use FindBin qw($Bin);
@@ -443,6 +443,50 @@ subtest 'UTF-8 MARC from parseFile is preserved' => sub {
     like($metadata, qr/Tuomarila, Alexi.*1 CD-äänilevy/s, 'Stored MARC metadata from file keeps UTF-8 characters');
 
     $mock_config->mock('getUseAutomatchBiblios', sub { return 'yes'; });
+};
+
+subtest 'a line that is already fully written is skipped on a re-run' => sub {
+    plan tests => 5;
+
+    register_vendor_edi_san('90020');
+
+    my %order = (
+        ShipNoticeNumber    => '90020',
+        ProductForm         => 'BK',
+        DeliverToLocation   => 'OUPKAIK2026',
+        DestinationLocation => 'OUPKAIK2026',
+        FundNumber          => 'OUPKAIK2026',
+        ISBN                => '978-951-0-90020-1',
+        EAN                 => '9789510900201',
+        Title               => 'Uudelleenkasittely: ohitetaan valmis rivi',
+        MarcTitle           => 'Uudelleenkasittely: ohitetaan valmis rivi',
+    );
+
+    my $filename = '90020_rerun_test';
+
+    my $first = $parser->parseDb(order_mock(\%order));
+    $first->setFileName($filename);
+    order_processor_helper($first);
+    is(scalar @error_messages, 0, 'First run processed without errors')
+        or diag(join "\n", @error_messages);
+
+    my ($orders_after_first) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COUNT(*) FROM aqorders WHERE order_vendornote = ?}, undef, $filename
+    );
+    is($orders_after_first, 1, 'First run created one order for the line');
+
+    my $second = $parser->parseDb(order_mock(\%order));
+    $second->setFileName($filename);
+    order_processor_helper($second);
+    is(scalar @error_messages, 0, 'Second run processed without errors')
+        or diag(join "\n", @error_messages);
+
+    my ($orders_after_second) = $schema->storage->dbh->selectrow_array(
+        q{SELECT COUNT(*) FROM aqorders WHERE order_vendornote = ?}, undef, $filename
+    );
+    is($orders_after_second, 1, 'Second run skipped the line instead of creating a duplicate order');
+
+    ok(grep(/Skipping line/, @log_messages), 'The skip is written to the log');
 };
 
 subtest 'automatch_biblios reuses the existing biblio for a repeat order' => sub {
