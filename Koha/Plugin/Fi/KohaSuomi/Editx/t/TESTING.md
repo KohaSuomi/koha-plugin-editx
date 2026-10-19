@@ -155,6 +155,48 @@ perl populate_test_data.pl --borrowernumber=42
 
 The script will validate that the borrowernumber exists before creating budgets and will show a warning if it doesn't.
 
+## Re-run fixtures (seed_rerun_fixtures.pl)
+
+`seed_rerun_fixtures.pl` creates the state described in issue #23: messages that
+failed part-way through and left orders, items and budget spend behind.
+
+The already-written part is not faked. `--seed` runs the real
+`OrderProcessor::process` on the lines that were written before the failure, so
+the biblios, basket, orders, items and `aqbudgets_spend_log` rows are exactly
+what production writes. The full message is then stored as `FAILED`, and
+`--requeue` hands it back to the processor.
+
+| Fixture | State | Re-run result |
+|---------|-------|---------------|
+| RR01 | 2 lines, only line 1 written | line 1 skipped, line 2 written → 2 orders, 2 items, status OK |
+| RR02 | 1 line, fully written | line skipped → still 1 order, 1 item, status OK |
+| RR03 | missing `CopyDetail/SubLineNumber` | rejected by the validator before processing → nothing written, stays FAILED |
+
+Without the skip in `OrderProcessor::process`, RR01 would end up with 3 orders
+and RR02 with 2.
+
+```bash
+# 1. create the partial states
+perl seed_rerun_fixtures.pl --seed --borrowernumber=42
+
+# 2. see what a re-run would do
+perl ../cronjobs/check_editx_rerun_duplicates.pl --filename RR01
+
+# 3. hand the messages back to the processor
+perl seed_rerun_fixtures.pl --requeue
+perl ../cronjobs/process_edi_messages.pl
+
+# 4. check the outcome
+perl seed_rerun_fixtures.pl --verify
+
+# remove the fixtures
+perl seed_rerun_fixtures.pl --clear
+```
+
+`--seed` refuses to run when fixtures from an earlier seed are still present;
+run `--clear` first. The vendor, fund, branch and location it creates are never
+removed by `--clear`.
+
 ## Database Tables
 
 The script populates these tables:

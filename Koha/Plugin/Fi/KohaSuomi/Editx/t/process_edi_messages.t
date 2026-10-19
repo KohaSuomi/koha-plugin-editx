@@ -12,12 +12,14 @@ use lib File::Spec->catdir($Bin, qw(.. .. .. .. .. ..));
 my @messages;
 my %process_fail_for;
 my %parse_fail_for;
+my %validate_fail_for;
 my @updates;
 my @error_logs;
 my @processed_ids;
 my @parsed_raw_inputs;
 my %search_filters;
 my @claims;
+my @validated_raw_inputs;
 
 {
     package TestEdiMessageRow;
@@ -102,6 +104,7 @@ $mock_orderprocessor->redefine('process', sub {
 });
 
 my $mock_edimessage = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage');
+my $mock_validator;
 $mock_edimessage->redefine('new', sub {
     return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage';
 });
@@ -109,6 +112,22 @@ $mock_edimessage->redefine('claimForProcessing', sub {
     my ($self, $id) = @_;
     push @claims, $id;
     return 1;
+});
+$mock_edimessage->redefine('parse_xml', sub {
+    my ($self, $raw_msg) = @_;
+    push @validated_raw_inputs, $raw_msg;
+
+    die "Invalid XML format: simulated" if $parse_fail_for{$raw_msg};
+
+    return bless { raw_msg => $raw_msg }, 'TestXmlDoc';
+});
+$mock_validator = Test::MockModule->new('Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator');
+$mock_validator->redefine('new', sub {
+    return bless {}, 'Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator';
+});
+$mock_validator->redefine('validateEditxContent', sub {
+    my ($self, $xml, $fileforlog) = @_;
+    return @{ $validate_fail_for{ $xml->{raw_msg} } || [] };
 });
 $mock_edimessage->redefine('update', sub {
     my ($self, $id, $status) = @_;
@@ -127,12 +146,14 @@ sub run_cron {
     @messages = @{ $params{messages} || [] };
     %process_fail_for = %{ $params{process_fail_for} || {} };
     %parse_fail_for = %{ $params{parse_fail_for} || {} };
+    %validate_fail_for = %{ $params{validate_fail_for} || {} };
 
     @updates = ();
     @error_logs = ();
     @processed_ids = ();
     @parsed_raw_inputs = ();
     @claims = ();
+    @validated_raw_inputs = ();
     %search_filters = ();
 
     my $script = File::Spec->catfile($Bin, '..', 'cronjobs', 'process_edi_messages.pl');
@@ -197,6 +218,37 @@ subtest 'marks FAILED and logs error when processing fails' => sub {
     like($error_logs[0]->{error}, qr/Simulated process error/, 'error log contains failure reason');
 };
 
+subtest 'marks FAILED and logs error when validation fails' => sub {
+    my ($ok, $error) = run_cron(
+        messages => [
+            TestEdiMessageRow->new(id => 30, raw_msg => 'msg:30', filename => 'test_30.xml'),
+        ],
+        validate_fail_for => {
+            'msg:30' => ['Title not present', 'FundNumber not present'],
+        },
+    );
+
+    ok($ok, 'cron script handles validation failure without dying');
+    is($error, '', 'no eval error from script');
+    is_deeply(\@claims, [30], 'message was claimed for processing');
+    is_deeply(\@validated_raw_inputs, ['msg:30'], 'raw XML payload was validated');
+    is(scalar @processed_ids, 0, 'processing not called when validation fails');
+    is_deeply(
+        \@updates,
+        [
+            { id => 30, status => 'FAILED' },
+        ],
+        'terminal status transitions to FAILED on validation error'
+    );
+    is(scalar @error_logs, 1, 'one validation error log entry written');
+    is($error_logs[0]->{id}, 30, 'validation error log references message id');
+    like(
+        $error_logs[0]->{error},
+        qr/validation failed: Title not present, FundNumber not present/,
+        'error log contains all validation errors'
+    );
+};
+
 subtest 'marks FAILED and logs error when parsing fails' => sub {
     my ($ok, $error) = run_cron(
         messages => [
@@ -220,7 +272,7 @@ subtest 'marks FAILED and logs error when parsing fails' => sub {
     );
     is(scalar @error_logs, 1, 'one parse error log entry written');
     is($error_logs[0]->{id}, 20, 'parse error log references message id');
-    like($error_logs[0]->{error}, qr/Failed to parse XML content/, 'error log contains parse failure reason');
+    like($error_logs[0]->{error}, qr/Invalid XML format/, 'error log contains parse failure reason');
 };
 
 done_testing();

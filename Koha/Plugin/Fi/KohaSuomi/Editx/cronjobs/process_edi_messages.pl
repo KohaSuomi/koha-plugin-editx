@@ -10,6 +10,7 @@ use Koha::Plugins;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Config;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Logger;
+use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice;
 use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage;
@@ -17,6 +18,7 @@ use Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage;
 my $schema = Koha::Database->new->schema;
 my $edi_message = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EdiMessage->new();
 my $orderProcessor = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor->new();
+my $validator = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::Validator->new();
 
 my $parser = new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::Parser((
     'objectFactory', new Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::EditX::Xml::ObjectFactory::LibraryShipNotice((
@@ -35,6 +37,12 @@ foreach my $message (@new_messages) {
     try {
         my $claimed = $edi_message->claimForProcessing($message->id);
         next unless $claimed;
+
+        my $xml = $edi_message->parse_xml($message->raw_msg);
+        my @errors = $validator->validateEditxContent($xml, $message->filename . ": ");
+        if (@errors) {
+            die "Editx content validation failed: " . join(", ", @errors) . "\n";
+        }
 
         my $order_object = $parser->parseDb($message->raw_msg);
 

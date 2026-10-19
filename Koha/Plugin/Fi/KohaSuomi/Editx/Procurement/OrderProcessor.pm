@@ -118,6 +118,15 @@ sub process {
     foreach(@$itemDetails){
         $item = $_;
         my $copyDetails = $item->getCopyDetail();
+
+        # A line is identified by its reference number, which createOrder stores
+        # as order_internalnote. If an earlier attempt already wrote every
+        # order and item for this line, skip it so that re-running a partially
+        # failed message only creates what is actually missing.
+        if($self->lineAlreadyProcessed($item, $order)){
+            next;
+        }
+
         foreach(@$copyDetails){
             $copyDetail = $_;
             ($biblio, $biblioitem) = $self->getBiblioDatas($copyDetail, $item, $order);
@@ -721,6 +730,39 @@ sub updateAqbudgetLog {
     my $dbh = C4::Context->dbh;
     my $stmnt = $dbh->prepare(qq{INSERT INTO aqbudgets_spend_log (monetary_amount,timestamp,origin,fund,account,itemtype,copy_quantity,total_amount,location,collection,biblionumber) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)});
     $stmnt->execute($monetaryamount,$timestamp,$tied,$fundnumber,$personname,$productform,$copyquantity,$totalAmount,$destinationlocation,$collectioncode,$biblio) or die($DBI::errstr);
+}
+
+sub lineAlreadyProcessed {
+    my $self = shift;
+    my ($itemDetail, $order) = @_;
+
+    my $reference = eval { $itemDetail->getReferenceNumber() };
+    my $fileName = eval { $order->getFileName() };
+
+    if(!$reference || !$fileName){
+        return 0;
+    }
+
+    # The number of copies the line asks for, summed over its copy details.
+    my $expected = 0;
+    my $copyDetails = eval { $itemDetail->getCopyDetail() };
+    foreach my $copyDetail (@{$copyDetails || []}){
+        my $copyQty = eval { $copyDetail->getCopyQuantity() };
+        $expected += $copyQty if defined $copyQty && $copyQty > 0;
+    }
+    return 0 if $expected <= 0;
+
+    my $orderCreator = Koha::Plugin::Fi::KohaSuomi::Editx::Procurement::OrderProcessor::Order->new;
+    my $progress = $orderCreator->getOrderProgress($reference, $fileName);
+
+    return 0 if !$progress->{complete} || $progress->{items} < $expected;
+
+    $self->getLogger()->log(
+        "Skipping line reference $reference: already written as "
+        . $progress->{orders} . " order(s) with " . $progress->{items} . " item(s)"
+    );
+
+    return 1;
 }
 
 sub getBookseller {
