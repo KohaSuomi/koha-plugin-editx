@@ -53,16 +53,32 @@ Sivulla määritettävät asetukset:
 | `authoriser` | EditX-tilausten luovan Koha-käyttäjän borrowernumber. Käyttäjä luo tilauskorit ja tilaukset, ja tähän on tarkoitusta varten lisätty oma editx-käyttäjä. |
 | `allowed_locations` | Pilkuilla erotetut hyllypaikkakoodit, jotka hyväksytään, kun EDItX-tilikoodista haetaan kirjasto, hyllypaikka ja vuosi. Tarkistetaan Kohan LOC-arvoista. |
 | `productform_alternative_triggers` | Pilkuilla erotetut hyllypaikkakoodit, jotka käyttävät `productform_alternative`-mäppäystä. |
-| `automatch_biblios` | Kun käytössä, EDItX-tuonti yrittää yhdistää olemassa olevan tietueen kanssa ennen uuden luomista. Oletuksena päällä. |
+| `automatch_biblios` | Kun käytössä, EDItX-tuonti yrittää yhdistää olemassa olevan tietueen kanssa ennen uuden luomista. Oletuksena päällä. Katso [Bibliotietueiden automaattinen täsmäytys](#bibliotietueiden-automaattinen-täsmäytys). |
 | `use_finna_materialtype` | Kun käytössä, 942$c-kentän tieto johdetaan Finna-materiaalityypistä ONIX ProductForm -mäppäyksen sijaan. Oletuksena pois. |
 | `notifications/mailto` | Pilkuilla erotetut vastaanottajat, joille apuskriptit raportoivat epäonnistuneesta EDItX-käsittelystä. |
-| `notifications/mailfrom` | Ilmoitussähpostien lähettäjä. |
+| `notifications/mailfrom` | Ilmoitussähköpostien lähettäjä. |
 
 Sivulla huomioitavaa:
 
 - Sähköpostiosoitteet on oltava pilkulla eroteltuina samalla rivillä. XML:stä kopioitu arvo menee kantaan sellaisenaan, ja validointi hylkää tallennuksen, jos pilkut puuttuvat.
 - `authoriser` ja `allowed_locations` ovat pakollisia ennen kuin tuonti voi toimia.
 - Tuotantovaiheessa kannattaa varmuuskopioida `map_productform` **ennen** ensimmäistä tallennusta, koska tallennus tyhjentää taulun ja kirjoittaa sen uudelleen CSV:stä. Ohjeet ovat [UPGRADE.md](UPGRADE.md)-tiedostossa.
+
+### Bibliotietueiden automaattinen täsmäytys
+
+Kun `automatch_biblios` on käytössä, EDItX-tuonti yrittää löytää olemassa olevan bibliotietueen ennen uuden tietueen luomista. Täsmäytys tehdään `OrderProcessor::getBiblioItemData`-metodissa.
+
+Ensisijaisesti tarkistetaan ISBN-tunnukset, joita kerätään sekä tilausviestistä (`ItemDetail`) että kopiotiedoista (`CopyDetail`). Jokaiselle ISBN-kandidaatille generoidaan vaihtoehtoiset hakumuodot metodilla `getIsbnLookupForms`:
+
+1. Alkuperäinen muoto sellaisena kuin se esiintyy EDItX-viestissä
+2. Muoto ilman väliviivoja ja välilyöntejä
+3. Mikäli ISBN on validi (Business::ISBN), generoidaan myös ISBN-10- ja ISBN-13 -muunnokset sekä niistä poistetaan väliviivat
+
+Näin esimerkiksi 10-merkkinen ISBN löytää vastaavan 13-merkkisen ISBN:n ja päinvastoin. Kaikki hakumuodot normalisoidaan väliviivattomiksi, ja haku tehdään `biblioitems.isbn`-kenttää vasten (`getItemsByIsbns`).
+
+Jos yhtään ISBN-täsmäytystä ei löydy, tarkistetaan EAN-tunniste (`getItemsByEan`). Mikäli sekään ei tuota tulosta, käytetään julkaisijan tunnisteen ja vastuunottajan yhdistelmää (`getItemByColumns`).
+
+Löydettäessä täsmäävä rivi palautetaan (`biblionumber`, `biblioitemnumber`, `isbn`). Tätä tietoa käytetään olemassa olevan tietueen hyödyntämiseen eikä uutta tietuetta luoda.
 
 Vanhoista asennuksista päivitettäessä ks. [UPGRADE.md](UPGRADE.md).
 
