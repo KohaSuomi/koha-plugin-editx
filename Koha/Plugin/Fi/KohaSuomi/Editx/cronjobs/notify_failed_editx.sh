@@ -35,30 +35,97 @@ test -n "$failed_path" || die "No path to failed EDItX messages in plugin config
 test -n "$failed_archived_path" || die "No path to failed_archived EDItX messages in plugin configuration."
 test -n "$log_path" || die "No path to logs in $KOHA_CONF."
 
+# Reported failed files are moved to failed_archived_path after the mail has
+# been sent, so that the same file is not reported again on the next run.
+archive_after_send="$log_path/editx/notify_failed_editx.archive.$$"
+trap 'rm -f "$archive_after_send"' 0 1 2 3 15
+: > "$archive_after_send" || die "Could not write archive list $archive_after_send."
+
+# Encode a UTF-8 subject as RFC 2047 encoded words. A subject is split at
+# character boundaries so that each encoded word stays below the 75 character
+# limit of RFC 2047.
+encode_subject() {
+  printf '%s' "$1" | perl -MEncode=encode -MMIME::Base64=encode_base64 -CSD -e '
+    my $text = do { local $/; <STDIN> };
+    my @words;
+    my $chunk = q{};
+    for my $char (split //, $text) {
+      my $bytes = encode("UTF-8", $char);
+      if (length($chunk) + length($bytes) > 45) {
+        push @words, "=?UTF-8?B?" . encode_base64($chunk, q{}) . "?=";
+        $chunk = q{};
+      }
+      $chunk .= $bytes;
+    }
+    push @words, "=?UTF-8?B?" . encode_base64($chunk, q{}) . "?=" if length $chunk;
+    print join(" ", @words);
+  '
+}
+
+send_mail() {
+  subject="$(encode_subject "$1")"
+  "$mailer" $mailfrom -a "Content-Type: text/plain; charset=UTF-8" -s "$subject" $mailto_addresses
+}
+
+# Print the name the message has in Koha, so that a file from the fail folder
+# can be found on the EDI messages page. runEditXImport constructs the name
+# from ShipNoticeNumber and IssueDateTime.
+print_koha_filename() {
+  file="$1"
+  base="$(basename "$file")"
+
+  ship_notice_number="$("$xmllint" --xpath 'string(/*/Header/ShipNoticeNumber)' "$file" 2> /dev/null)"
+  issue_date_time="$("$xmllint" --xpath 'string(/*/Header/IssueDateTime)' "$file" 2> /dev/null)"
+
+  if test -n "$ship_notice_number" && test -n "$issue_date_time"; then
+    koha_filename="${ship_notice_number}_${issue_date_time}"
+    if test "$koha_filename" != "$base"; then
+      printf "Sanoman nimi Kohassa: %s\n\n" "$koha_filename"
+    fi
+  fi
+}
+
+print_error_log_excerpt() {
+  file="$1"
+  lines="$2"
+
+  if test -f "$log_path/editx/error.log"; then
+    error_excerpt="$(grep -F --text -- "$(basename "$file")" "$log_path/editx/error.log" 2> /dev/null | tail -n "$lines")"
+  else
+    error_excerpt=""
+  fi
+
+  if test -n "$error_excerpt"; then
+    printf '%s\n' "$error_excerpt"
+  else
+    printf "Virhelokista ei löytynyt tätä tiedostoa koskevaa riviä.\n"
+  fi
+}
+
 # Get EDItX errors related to Elasticsearch and send emails
 
-export result="$( grep -B 1 Elasticsearch $log_path/editx/error.log)"
+export result="$( grep -B 1 --text Elasticsearch "$log_path/editx/error.log" 2> /dev/null)"
 if test -n "$result"; then
-  (
-
+  if ! (
     printf "\nSeuraavat EDItX sanomat on saatettu käsitellä tuplasti (Elasticsearch-virhe):\n\n"
-    printf "$result\n"
-    
+    printf '%s\n' "$result"
+
     printf "\n"
     printf "Katso lisätietoja EDItX rajapinnan parametroinnista ja tyypillisten virhetilanteiden korjaamisesta:\n"
     printf "https://koha-suomi.fi/dokumentaatio/editx/#43-erilaisia-virhetilanteita.\n"
-  ) | $mailer $mailfrom -s "EDItX tilaussanomien käsittelyssä oli ongelmia (Elasticsearch)" $mailto_addresses
+  ) | send_mail "EDItX tilaussanomien käsittelyssä oli ongelmia (Elasticsearch)"; then
+    die "Could not send EDItX Elasticsearch notification."
+  fi
 fi
 
 # Get postponed and failed EDItX notices and send emails
 
-export pending_files="$(ls -1 $tmp_path/*.xml 2> /dev/null)"
-export failed_files="$(ls -1 $failed_path/*.xml 2> /dev/null)"
+export pending_files="$(ls -1 "$tmp_path"/*.xml 2> /dev/null)"
+export failed_files="$(ls -1 "$failed_path"/*.xml 2> /dev/null)"
 
 test -z "$pending_files" && test -z "$failed_files" && test -z "$db_failed_messages" && exit 0 # Exit if nothing to report
 
-(
-
+if ! (
   if test -n "$pending_files"; then
 
     printf "\nSeuraavat EDItX sanomat odottavat edelleen käsittelyä:\n\n"
@@ -67,10 +134,9 @@ test -z "$pending_files" && test -z "$failed_files" && test -z "$db_failed_messa
     printf "on tapahtunut virhe, tai siirto palvelimelle on edelleen kesken.\n\n"
 
     for file in $pending_files; do
-    
+
       printf "Ote rajapinnan virhelokista ($log_path/editx/error.log):\n"
-      
-      sed -n "H; /^-- Validating file $(basename $file)/h; \${g;p;}" "$log_path/editx/error.log" | sed '1d' | grep -m 1 "$(basename $file)"
+      print_error_log_excerpt "$file" 1
 
       if test $(stat -c %Y "$file") -lt $(($(date +%s) - 604800)); then
         printf "Sanoma $file vanhentunut ja se -hylätään-. Arkistoidaan hakemistoon $failed_archived_path.\n"
@@ -91,14 +157,14 @@ test -z "$pending_files" && test -z "$failed_files" && test -z "$db_failed_messa
 
     for file in $failed_files; do
 
-      printf "\n=== Sanoma: $(basename $file) ===\n\n"
-      
+      printf "\n=== Sanoma: %s ===\n\n" "$(basename "$file")"
+      print_koha_filename "$file"
+
       printf "Ote rajapinnan virhelokista ($log_path/editx/error.log):\n"
-      
-      sed -n "H; /^-- Validating file $(basename $file)/h; \${g;p;}" "$log_path/editx/error.log" | sed '1d' | grep --text "$(basename $file)"
-      
+      print_error_log_excerpt "$file" 20
+
       unset affected_locations
-      for location in $($xmllint --xpath "*/ItemDetail/CopyDetail/DeliverToLocation" $file | sed 's/<\/*DeliverToLocation\/*>/\n/ig' | sort -u); do
+      for location in $("$xmllint" --xpath "*/ItemDetail/CopyDetail/DeliverToLocation" "$file" 2> /dev/null | sed 's/<\/*DeliverToLocation\/*>/\n/ig' | sort -u); do
         affected_locations="$affected_locations $location"
       done
 
@@ -108,15 +174,20 @@ test -z "$pending_files" && test -z "$failed_files" && test -z "$db_failed_messa
         printf "\nSijoitus- ja tilitietoja ei löytynyt sanomasta.\n"
       fi
 
-      if ! xmllint --noout "$file" 2> /dev/null ; then
+      if ! "$xmllint" --noout "$file" 2> /dev/null ; then
         printf "\nSanoma on formaatiltaan virheellinen."
         mv "$file" "$failed_archived_path/"
         continue
       fi
 
+      # Archive the file only after the notification has been sent.
+      printf '%s\n' "$file" >> "$archive_after_send"
+
     done
 
-  fi 
+    printf "\nRaportoidut sanomat siirretään ilmoituksen lähettämisen jälkeen hakemistoon %s.\n" "$failed_archived_path"
+
+  fi
 
   if test -n "$db_failed_messages"; then
 
@@ -129,7 +200,16 @@ test -z "$pending_files" && test -z "$failed_files" && test -z "$db_failed_messa
   printf "Katso lisätietoja EDItX rajapinnan parametroinnista ja tyypillisten virhetilanteiden korjaamisesta:\n"
   printf "https://koha-suomi.fi/dokumentaatio/editx/#43-erilaisia-virhetilanteita.\n"
 
-) | $mailer $mailfrom -s "EDItX tilaussanomien käsittelyssä oli ongelmia" $mailto_addresses
+) | send_mail "EDItX tilaussanomien käsittelyssä oli ongelmia"; then
+  die "Could not send EDItX notification."
+fi
+
+if test -s "$archive_after_send"; then
+  while IFS= read -r file; do
+    test -f "$file" || continue
+    mv "$file" "$failed_archived_path/" || die "Could not archive failed message $file."
+  done < "$archive_after_send"
+fi
 
 # All done, exit gracefully
 exit 0

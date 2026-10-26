@@ -11,6 +11,12 @@ This directory contains test scripts and test data population utilities for the 
   - Supports `--clear` and `--borrowernumber` flags
   - See [TESTING.md](TESTING.md) for full documentation
 
+### Tests
+
+- **`notify_failed_editx.t`** - Tests `cronjobs/notify_failed_editx.sh` against stub config, database and mail helpers
+  - Needs only `xmllint`; no Koha instance, database or mail server is required
+  - Run with `prove -v Koha/Plugin/Fi/KohaSuomi/Editx/t/notify_failed_editx.t` from the Koha directory
+
 ### Documentation
 
 - **`TESTING.md`** - Complete testing guide
