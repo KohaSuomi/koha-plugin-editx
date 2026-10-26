@@ -123,7 +123,12 @@ sub run_notify {
     local $ENV{KOHA_CONF} = $koha_conf;
     local $ENV{PATH} = ( $args{failing_mail} ? $fail_bin : $bin ) . ":$ENV{PATH}";
 
-    my $status = system( 'sh', "$cronjobs/notify_failed_editx.sh" );
+    my $cmd = 'sh ' . shell_quote("$cronjobs/notify_failed_editx.sh");
+    $cmd .= ' --verbose' if $args{verbose};
+    my $redir = $args{stderr_file};
+    $cmd .= ' 2>' . shell_quote($redir) if $redir;
+
+    my $status = system($cmd);
     return $status >> 8;
 }
 
@@ -274,6 +279,29 @@ subtest 'a failed mail leaves the files in the fail directory' => sub {
     ok( -e $failed_file, 'file is left in the fail directory for the next run' );
     ok( !-e "$archived/new_failure.xml", 'file is not archived' );
     is( scalar @{ leftover_archive_lists() }, 0, 'temporary archive list is removed' );
+
+    done_testing();
+};
+
+subtest "verbose mode prints the message that will be sent" => sub {
+
+    write_text( "$pending/incomplete.xml", $pending_xml );
+    write_text( $db_output, $db_message );
+    write_text( $error_log, $error_line );
+
+    my $stderr_file = "$root/verbose-stderr.txt";
+    unlink $stderr_file;
+
+    my $exit = run_notify( verbose => 1, stderr_file => $stderr_file );
+    is( $exit, 0, "script exits successfully" );
+
+    my $stderr = read_text( $stderr_file );
+    ok( defined $stderr, "verbose output was captured" ) || return;
+    like( $stderr, qr/--- BEGIN MESSAGE ---/, "verbose output marks the beginning of the message" );
+    like( $stderr, qr/Sanoman nimi Kohassa: 222_20261026/, "verbose output contains the message body" );
+    like( $stderr, qr/--- END MESSAGE ---/, "verbose output marks the end of the message" );
+
+    ok( -e "$archived/new_failure.xml", "the mail is still sent and archived" );
 
     done_testing();
 };

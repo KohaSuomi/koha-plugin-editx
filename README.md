@@ -127,7 +127,7 @@ Molemmat minuutin välein ajettavat skriptit ovat välttämättömiä: `runEditX
 
 Sanomat käsitellään klo 6.00-22.00 välisenä aikana minuutin välein tai niin nopeassa tahdissa kuin mahdollista. Uudelleenjonotus tapahtuu klo 21.00 ja virheilmoitussähköpostit lähetetään klo 23.45.
 
-Virheilmoitussähköposti kokoaa `fail`-hakemiston tiedostot, päivän aikana epäonnistuneet sanomat `edifact_messages`-taulusta sekä tiedostoittain otteet `error.log`-tiedostosta. Duplikaatit kirjoitetaan `error.log`:iin, jotta ne näkyvät sähköpostissa perusteluineen.
+Virheilmoitussähköposti kokoaa `fail`-hakemiston tiedostot, päivän aikana epäonnistuneet sanomat `edifact_messages`-taulusta sekä tiedostoittain otteet `error.log`-tiedostosta. Duplikaatit kirjoitetaan `error.log`:iin, jotta ne näkyvät sähköpostissa perusteluineen. Skripti tukee `--verbose`-lippua (`-v` tai ympäristömuuttuja `VERBOSE=1`), joka tulostaa lähetettävän viestin stderr-virtaan; sähköposti lähetetään silti normaalisti.
 
 `import_failed_path`-hakemiston tiedostot raportoidaan vain kerran: kun ilmoitus on lähetetty onnistuneesti, raportoidut tiedostot siirretään `import_failed_archived_path`-hakemistoon. Jos sähköpostin lähetys epäonnistuu, tiedostot jäävät `fail`-hakemistoon ja ne raportoidaan seuraavalla ajolla. `import_tmp_path`-hakemiston tiedostot raportoidaan joka ajolla, kunnes ne käsitellään tai täyttävät seitsemän vuorokautta ja arkistoidaan. Kannassa epäonnistuneet sanomat (status `FAILED`) haetaan `edifact_messages`-taulusta vain sen päivän osalta, jolloin niiden virhe on kirjattu, joten `FAILED`-rivit jäävät historiaan eivätkä toistu ilmoituksissa. Sähköpostin otsikko ja runko lähetetään UTF-8-merkistönä.
 

@@ -4,6 +4,24 @@
 
 die() { printf '%s\n' "$*" ; exit 1 ; }
 
+# Optional flags. --verbose (-v) prints the message that will be sent to stderr
+# in addition to sending it; VERBOSE=1 in the environment has the same effect.
+verbose=0
+test "${VERBOSE:-}" = 1 && verbose=1
+for arg in "$@"; do
+  case "$arg" in
+    -v|--verbose) verbose=1 ;;
+    -h|--help)
+      printf 'Usage: %s [--verbose]\n' "$0"
+      printf '  -v, --verbose  print the message that will be sent to stderr\n'
+      exit 0
+      ;;
+    *)
+      die "Unknown option: $arg"
+      ;;
+  esac
+done
+
 # Get, set and check variables
 
 export xmllint="$(which xmllint)"
@@ -38,7 +56,8 @@ test -n "$log_path" || die "No path to logs in $KOHA_CONF."
 # Reported failed files are moved to failed_archived_path after the mail has
 # been sent, so that the same file is not reported again on the next run.
 archive_after_send="$log_path/editx/notify_failed_editx.archive.$$"
-trap 'rm -f "$archive_after_send"' 0 1 2 3 15
+message_tmp="$log_path/editx/notify_failed_editx.message.$$"
+trap 'rm -f "$archive_after_send" "$message_tmp"' 0 1 2 3 15
 : > "$archive_after_send" || die "Could not write archive list $archive_after_send."
 
 # Encode a UTF-8 subject as RFC 2047 encoded words. A subject is split at
@@ -64,7 +83,18 @@ encode_subject() {
 
 send_mail() {
   subject="$(encode_subject "$1")"
-  "$mailer" $mailfrom -a "Content-Type: text/plain; charset=UTF-8" -s "$subject" $mailto_addresses
+  cat > "$message_tmp" || die "Could not write message body $message_tmp."
+  if test "$verbose" -eq 1; then
+    printf 'Subject: %s\n' "$1" >&2
+    printf 'To: %s\n' "$mailto_addresses" >&2
+    printf '%s\n' '--- BEGIN MESSAGE ---' >&2
+    cat "$message_tmp" >&2
+    printf '%s\n' '--- END MESSAGE ---' >&2
+  fi
+  "$mailer" $mailfrom -a "Content-Type: text/plain; charset=UTF-8" -s "$subject" $mailto_addresses < "$message_tmp"
+  status=$?
+  rm -f "$message_tmp"
+  return $status
 }
 
 # Print the name the message has in Koha, so that a file from the fail folder
