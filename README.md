@@ -53,16 +53,32 @@ Sivulla määritettävät asetukset:
 | `authoriser` | EditX-tilausten luovan Koha-käyttäjän borrowernumber. Käyttäjä luo tilauskorit ja tilaukset, ja tähän on tarkoitusta varten lisätty oma editx-käyttäjä. |
 | `allowed_locations` | Pilkuilla erotetut hyllypaikkakoodit, jotka hyväksytään, kun EDItX-tilikoodista haetaan kirjasto, hyllypaikka ja vuosi. Tarkistetaan Kohan LOC-arvoista. |
 | `productform_alternative_triggers` | Pilkuilla erotetut hyllypaikkakoodit, jotka käyttävät `productform_alternative`-mäppäystä. |
-| `automatch_biblios` | Kun käytössä, EDItX-tuonti yrittää yhdistää olemassa olevan tietueen kanssa ennen uuden luomista. Oletuksena päällä. |
+| `automatch_biblios` | Kun käytössä, EDItX-tuonti yrittää yhdistää olemassa olevan tietueen kanssa ennen uuden luomista. Oletuksena päällä. Katso [Bibliotietueiden automaattinen täsmäytys](#bibliotietueiden-automaattinen-täsmäytys). |
 | `use_finna_materialtype` | Kun käytössä, 942$c-kentän tieto johdetaan Finna-materiaalityypistä ONIX ProductForm -mäppäyksen sijaan. Oletuksena pois. |
 | `notifications/mailto` | Pilkuilla erotetut vastaanottajat, joille apuskriptit raportoivat epäonnistuneesta EDItX-käsittelystä. |
-| `notifications/mailfrom` | Ilmoitussähpostien lähettäjä. |
+| `notifications/mailfrom` | Ilmoitussähköpostien lähettäjä. |
 
 Sivulla huomioitavaa:
 
 - Sähköpostiosoitteet on oltava pilkulla eroteltuina samalla rivillä. XML:stä kopioitu arvo menee kantaan sellaisenaan, ja validointi hylkää tallennuksen, jos pilkut puuttuvat.
 - `authoriser` ja `allowed_locations` ovat pakollisia ennen kuin tuonti voi toimia.
 - Tuotantovaiheessa kannattaa varmuuskopioida `map_productform` **ennen** ensimmäistä tallennusta, koska tallennus tyhjentää taulun ja kirjoittaa sen uudelleen CSV:stä. Ohjeet ovat [UPGRADE.md](UPGRADE.md)-tiedostossa.
+
+### Bibliotietueiden automaattinen täsmäytys
+
+Kun `automatch_biblios` on käytössä, EDItX-tuonti yrittää löytää olemassa olevan bibliotietueen ennen uuden tietueen luomista. Täsmäytys tehdään `OrderProcessor::getBiblioItemData`-metodissa.
+
+Ensisijaisesti tarkistetaan ISBN-tunnukset, joita kerätään sekä tilausviestistä (`ItemDetail`) että kopiotiedoista (`CopyDetail`). Jokaiselle ISBN-kandidaatille generoidaan vaihtoehtoiset hakumuodot metodilla `getIsbnLookupForms`:
+
+1. Alkuperäinen muoto sellaisena kuin se esiintyy EDItX-viestissä
+2. Muoto ilman väliviivoja ja välilyöntejä
+3. Mikäli ISBN on validi (Business::ISBN), generoidaan myös ISBN-10- ja ISBN-13 -muunnokset sekä niistä poistetaan väliviivat
+
+Näin esimerkiksi 10-merkkinen ISBN löytää vastaavan 13-merkkisen ISBN:n ja päinvastoin. Kaikki hakumuodot normalisoidaan väliviivattomiksi, ja haku tehdään `biblioitems.isbn`-kenttää vasten (`getItemsByIsbns`).
+
+Jos yhtään ISBN-täsmäytystä ei löydy, tarkistetaan EAN-tunniste (`getItemsByEan`). Mikäli sekään ei tuota tulosta, käytetään julkaisijan tunnisteen ja vastuunottajan yhdistelmää (`getItemByColumns`).
+
+Löydettäessä täsmäävä rivi palautetaan (`biblionumber`, `biblioitemnumber`, `isbn`). Tätä tietoa käytetään olemassa olevan tietueen hyödyntämiseen eikä uutta tietuetta luoda.
 
 Vanhoista asennuksista päivitettäessä ks. [UPGRADE.md](UPGRADE.md).
 
@@ -111,7 +127,9 @@ Molemmat minuutin välein ajettavat skriptit ovat välttämättömiä: `runEditX
 
 Sanomat käsitellään klo 6.00-22.00 välisenä aikana minuutin välein tai niin nopeassa tahdissa kuin mahdollista. Uudelleenjonotus tapahtuu klo 21.00 ja virheilmoitussähköpostit lähetetään klo 23.45.
 
-Virheilmoitussähköposti kokoaa `fail`-hakemiston tiedostot, päivän aikana epäonnistuneet sanomat `edifact_messages`-taulusta sekä tiedostoittain otteet `error.log`-tiedostosta. Duplikaatit kirjoitetaan `error.log`:iin, jotta ne näkyvät sähköpostissa perusteluineen.
+Virheilmoitussähköposti kokoaa `fail`-hakemiston tiedostot, päivän aikana epäonnistuneet sanomat `edifact_messages`-taulusta sekä tiedostoittain otteet `error.log`-tiedostosta. Duplikaatit kirjoitetaan `error.log`:iin, jotta ne näkyvät sähköpostissa perusteluineen. Skripti tukee `--verbose`-lippua (`-v` tai ympäristömuuttuja `VERBOSE=1`), joka tulostaa lähetettävän viestin stderr-virtaan; sähköposti lähetetään silti normaalisti.
+
+`import_failed_path`-hakemiston tiedostot raportoidaan vain kerran: kun ilmoitus on lähetetty onnistuneesti, raportoidut tiedostot siirretään `import_failed_archived_path`-hakemistoon. Jos sähköpostin lähetys epäonnistuu, tiedostot jäävät `fail`-hakemistoon ja ne raportoidaan seuraavalla ajolla. `import_tmp_path`-hakemiston tiedostot raportoidaan joka ajolla, kunnes ne käsitellään tai täyttävät seitsemän vuorokautta ja arkistoidaan. Kannassa epäonnistuneet sanomat (status `FAILED`) haetaan `edifact_messages`-taulusta vain sen päivän osalta, jolloin niiden virhe on kirjattu, joten `FAILED`-rivit jäävät historiaan eivätkä toistu ilmoituksissa. Sähköpostin otsikko ja runko lähetetään UTF-8-merkistönä.
 
 `notify_failed_editx_elastic.sh` ja `notify-failed-editx_old.sh` ovat vanhentuneita eivätkä ne korvaa `notify_failed_editx.sh`:n toimintoja. Älä ajasta niitä.
 
@@ -454,7 +472,9 @@ Vanhentuneita skriptejä ei pidä ajastaa: `cronjobs/notify_failed_editx_elastic
 
 **Sanoma on taulussa mutta tilausta ei syntynyt.** Katso `edifact_messages`-taulun tila ja `edifact_errors`-taulu, ks. [Kehittäjälle](#kehittäjälle-mistä-löytää-virheet).
 
-**Sähköpostia ei tule.** Varmista, että `notify_failed_editx.sh` on ajastettu ja että `notifications/mailto` sisältää pilkulla erotetut osoitteet. Skripti vaatii myös `xmllint`- ja `mail`-komennon palvelimella. Jos mitään ei ole reportoitavaa, skripti poistuu hiljaa.
+**Sähköpostia ei tule.** Varmista, että `notify_failed_editx.sh` on ajastettu ja että `notifications/mailto` sisältää pilkulla erotetut osoitteet. Skripti vaatii `xmllint`-, `mail`- ja `perl`-komennot sekä Perl-moduulit `Encode` ja `MIME::Base64`. Jos mitään ei ole reportoitavaa, skripti poistuu hiljaa.
+
+**Sama virheilmoitus toistuu.** Raportoidut `fail`-hakemiston tiedostot siirretään onnistuneen sähköpostin jälkeen `import_failed_archived_path`-hakemistoon, joten ne eivät toistu. Jos sähköpostin lähetys epäonnistuu, siirtoa ei tehdä ja samat tiedostot raportoidaan seuraavalla ajolla. Tarkista tällöin `mail`-komennon toiminta. `edifact_messages`-taulun `FAILED`-rivit raportoidaan vain niiden virhepäivän ajalta.
 
 **Sanoma jää käsittelemättä.** Tarkista, että `process_edi_messages.pl` on ajastettu. Pelkkä `runEditXImport.pl` ei riitä, vaikka tauluun tulisi uusia `NEW`-rivejä.
 
@@ -467,7 +487,7 @@ Plugin kirjoittaa kolmeen paikkaan. Se mitä kukin niistä sisältää, riippuu 
 | Oire | Mistä etsitään |
 | --- | --- |
 | Tiedosto ei pääty `edifact_messages`-tauluun | `<logdir>/editx/transaction.log` ja `<logdir>/editx/error.log` |
-| Tiedosto hyppää `fail`-hakemistoon | `error.log`. Tätä vaihetta varten ei synny `edifact_errors`-riviä, koska virhe liitetään sanomaan tiedoston alkuperäisellä nimellä, vaikka tauluun tallennetaan sanoma muodostetulla nimellä. |
+| Tiedosto hyppää `fail`-hakemistoon | `error.log`. Tätä vaihetta varten ei synny `edifact_errors`-riviä, koska virhe liitetään sanomaan tiedoston alkuperäisellä nimellä, vaikka tauluun tallennetaan sanoma muodostetulla nimellä. Virheilmoitus näyttää siksi sekä `fail`-hakemiston tiedostonimen että Kohassa näkyvän nimen (`ShipNoticeNumber_IssueDateTime`). |
 | Sanoma taulussa, tilaus ei syntynyt | `edifact_messages.status` ja `edifact_errors.details`. **Lokitiedostoa ei ole.** |
 | REST-pyyntö palautti `400` | Vastauskappaleen `errors`-lista sekä `error.log` |
 | REST-pyyntö palautti `500`, tai todennus-/valtuutusvirhe | Kohan oma-loki, jonne kirjoitetaan `Koha::Logger`-olla rajapinnan kautta (`interface => 'api'`) |

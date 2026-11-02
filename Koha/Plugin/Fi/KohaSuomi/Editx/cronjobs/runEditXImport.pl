@@ -59,7 +59,7 @@ foreach my $file (@files) {
     if ($edi_message->duplicateExists($filename)) {
         # Logged as an error so that the notification e-mail picks the reason
         # up from error.log, like it does for the other files in the failed folder.
-        $logger->logError("File $file already exists as a processed or pending message $filename in DB, moving to failed");
+        $logger->logError("Tiedosto $file on jo tietokannassa käsiteltynä tai jonossa olevana sanomana ($filename), siirretään epäonnistuneisiin.");
         move("$tmpPath$file", "$failedPath$file") or die "Could not move file $file to failed directory: $!";
         next;
     }
