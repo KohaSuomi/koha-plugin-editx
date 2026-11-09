@@ -21,11 +21,13 @@ sub new {
             $errorLogPath = $logFolder . "error.log";
 
             unless(open FILE, '>>'. $transactionLogPath) {
-                die "\nUnable to create $transactionLogPath\n";
+                warn "Unable to create $transactionLogPath\n";
+                $transactionLogPath = undef;
             }
 
             unless(open FILE, '>>'. $errorLogPath) {
-                die "\nUnable to create $errorLogPath\n";
+                warn "Unable to create $errorLogPath\n";
+                $errorLogPath = undef;
             }
         }
     }
@@ -60,11 +62,16 @@ sub writeToFile{
     my $filePath = $_[0];
     my $message = $_[1];
 
+    return unless defined $filePath;
+
     if(-f $filePath && $message ){
-        open(my $fh, '>>', $filePath);
-        $message = $self->getTimeStamp() . " -- " . $message . "\n";
-        print $fh "$message";
-        close $fh;
+        if(open(my $fh, '>>', $filePath)){
+            $message = $self->getTimeStamp() . " -- " . $message . "\n";
+            print $fh "$message";
+            close $fh;
+        } else {
+            warn "Unable to write to $filePath: $!\n";
+        }
     }
 }
 
